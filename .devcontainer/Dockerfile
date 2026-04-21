@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     libx11-xcb1 \
     libfontconfig1 \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip + install Python packages
