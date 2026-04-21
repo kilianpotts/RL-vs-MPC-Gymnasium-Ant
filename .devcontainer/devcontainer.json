@@ -1,0 +1,19 @@
+{
+  "name": "Gymnasium MuJoCo",
+  "build": { "dockerfile": "Dockerfile" },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces,type=bind,consistency=cached",
+  "remoteUser": "devuser",
+  "workspaceFolder": "/workspaces",
+"runArgs": [
+    "--gpus=all"
+],
+"postCreateCommand": "export MUJOCO_GL=egl",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
+}
