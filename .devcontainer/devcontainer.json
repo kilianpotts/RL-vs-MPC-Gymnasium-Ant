@@ -5,11 +5,11 @@
   "remoteUser": "devuser",
   "workspaceFolder": "/workspaces",
 "runArgs": [
-    "--gpus=all"
+  
 ],
   "mounts": [
-    "source=${localEnv:USERPROFILE}\\.ssh,target=/home/devuser/.ssh,type=bind,consistency=cached"
-  ],
+  "source=${localEnv:HOME}/.ssh,target=/home/devuser/.ssh,type=bind,consistency=cached"
+],
 "postCreateCommand": "export MUJOCO_GL=egl",
   "customizations": {
     "vscode": {
