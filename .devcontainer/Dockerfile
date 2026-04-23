@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     nano \
     git \
+    x11-apps \
     # OpenGL / rendering
     libgl1 \
     libosmesa6 \
@@ -34,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir \
         "gymnasium[classic-control,mujoco]" \
-        opencv-python-headless
+        opencv-python
 
 # Create non-root user
 RUN useradd -ms /bin/bash devuser && \
