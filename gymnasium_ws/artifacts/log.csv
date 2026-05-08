@@ -1,0 +1,8 @@
+timestamp,model,tag,final_reward,auc,steps,mode
+2026-05-05 20:55:18,ant_cmd_policy_stand_20260505_205517,stand,3713.180,14820.7,52440,interrupted
+2026-05-05 20:59:53,ant_cmd_policy_stand_20260505_205953,stand,181.601,4568.3,27800,interrupted
+2026-05-05 21:11:55,ant_cmd_policy_stand_20260505_211155,stand,-1463.063,-6180.5,36090,interrupted
+2026-05-05 21:17:06,ant_cmd_policy_stand_20260505_211704,stand,311.244,7312.8,60980,interrupted
+2026-05-08 14:59:43,ant_cmd_ppo_stand_20260508_145942,stand,80.750,5995.4,81920,interrupted
+2026-05-08 15:00:44,ant_cmd_ppo_stand_20260508_150043,stand,180.837,5421.6,20480,interrupted
+2026-05-08 15:10:24,ant_cmd_sac_stand_20260508_151023,stand,142.827,1039.1,3730,interrupted

@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -30,11 +30,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip + install Python packages
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir \
-        "gymnasium[classic-control,mujoco]" \
-        opencv-python
+# Upgrade pip
+RUN pip3 install --no-cache-dir --upgrade pip
+
+# 🔥 Install GPU-enabled PyTorch (IMPORTANT LINE)
+RUN pip3 install --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu124
+
+# RL + MuJoCo stack
+RUN pip3 install --no-cache-dir \
+    "gymnasium[classic-control,mujoco]>=0.29" \
+    mujoco \
+    "stable-baselines3>=2.3.0" \
+    opencv-python
+
+# (Optional but helpful for MuJoCo rendering)
+ENV MUJOCO_GL=egl
+ENV PYOPENGL_PLATFORM=egl
 
 # Create non-root user
 RUN useradd -ms /bin/bash devuser && \
