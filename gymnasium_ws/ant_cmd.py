@@ -177,7 +177,7 @@ class CmdAnt(gym.Wrapper):
         vel_pen = -(x_vel ** 2 + y_vel ** 2) if torso_z > 0.3 else 0.0
 
         # Penalise asymetrical hips
-        if torso_z > 0.5:
+        if torso_z > 0.7:
             hip_mean = np.mean(hip_angles)
             hip_dev = np.abs(hip_angles - hip_mean)
             tolerance = 0.35
@@ -187,7 +187,7 @@ class CmdAnt(gym.Wrapper):
             hip_sym_pen = 0.0
 
         # Penalise moving legs
-        joint_vel_pen = -0.002 * float(np.sum(joint_vel ** 2)) if torso_z > 0.5 else 0.0
+        joint_vel_pen = -0.005 * float(np.sum(joint_vel ** 2)) if torso_z > 0.7 else 0.0
     
         return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + joint_vel_pen + self._energy(action)
 
