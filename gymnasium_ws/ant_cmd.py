@@ -158,6 +158,11 @@ class CmdAnt(gym.Wrapper):
         quat_xyz = obs[4:7]
         x_vel    = float(info.get("x_velocity", 0.))
         y_vel    = float(info.get("y_velocity", 0.))
+        joint_pos = obs[7:15]
+        joint_pos = obs[7:15]
+        hip_angles = joint_pos[[0, 2, 4, 6]]
+        joint_vel = obs[21:29]
+
  
         # Exponential pull toward 0.75m — lying (~0.13m) -> ~0.0, standing (~0.75m) -> 5.0
         height_bon  =  5.0 * np.exp(-8.0 * max(0.0, 0.75 - torso_z))
@@ -170,8 +175,21 @@ class CmdAnt(gym.Wrapper):
  
         # Velocity penalty — only once off the ground
         vel_pen = -(x_vel ** 2 + y_vel ** 2) if torso_z > 0.3 else 0.0
- 
-        return height_bon + upright_bon + tilt_pen + vel_pen + self._energy(action)
+
+        # Penalise asymetrical hips
+        if torso_z > 0.5:
+            hip_mean = np.mean(hip_angles)
+            hip_dev = np.abs(hip_angles - hip_mean)
+            tolerance = 0.35
+            excess = np.maximum(0.0, hip_dev - tolerance)
+            hip_sym_pen = -0.02 * float(np.mean(excess ** 2))
+        else:
+            hip_sym_pen = 0.0
+
+        # Penalise moving legs
+        joint_vel_pen = -0.01 * float(np.sum(joint_vel ** 2)) if torso_z > 0.5 else 0.0
+    
+        return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + joint_vel_pen + self._energy(action)
 
     def _r_forward(self, obs, action, info) -> float:
         x_vel = float(info.get("x_velocity", 0.))
