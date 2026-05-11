@@ -1,3 +1,11 @@
+#   DEPRECATED: Use the ant_rl package instead
+#
+#   New entry points:
+#     python train_expert.py --command stand              # train expert for single command
+#     python train_curriculum.py --stage stand            # train curriculum stage
+#
+#   This file is kept for reference only and should not be used.
+
 #To DO
 # -current stand is a bit querky think of good reward shaping (reward currently more of a stand up then a stand still)
 # -implement curriculum learning building on stand
@@ -5,7 +13,7 @@
 #- implement rotate rewards
 #- consider symmetrie, maybe flip command and observation left-right and share model weights for rotate left and right? 
 
-
+# contrastive? punish standing still in forward reward?
 """
 Command-Conditioned Ant-v5
 ==========================
@@ -18,6 +26,7 @@ Command vector: [w, a, d]  — one-hot or zero vector
 Usage:
     python ant_cmd.py train --sac       # resume or start stage 1 (stand) with SAC
     python ant_cmd.py train --ppo       # resume or start stage 1 (stand) with PPO
+        python ant_cmd.py train --schedule  # enable automatic stand/forward scheduling
   python ant_cmd.py train --retrain   # start fresh, keep old checkpoints
   python ant_cmd.py inference         # live keyboard control
 """
@@ -109,7 +118,7 @@ class CmdAnt(gym.Wrapper):
     replaces the reward with a command-appropriate one.
     """
 
-    def __init__(self, command: np.ndarray = CMD_STAND, render_mode=None):
+    def __init__(self, command: np.ndarray = CMD_STAND, render_mode=None, auto_schedule=False):
         base = gym.make(
             "Ant-v5",
             render_mode=render_mode,
@@ -118,6 +127,13 @@ class CmdAnt(gym.Wrapper):
         super().__init__(base)
 
         self.command = np.array(command, dtype=np.float32)
+        self.auto_schedule = auto_schedule
+        self.steps_since_cmd_change = 0
+        self.command_duration = np.random.randint(100, 300)
+        self.command_probs = {
+            "stand": 0.9,
+            "forward": 0.1,
+        }
 
         lo = np.concatenate([self.env.observation_space.low,  np.zeros(CMD_DIM, np.float32)])
         hi = np.concatenate([self.env.observation_space.high, np.ones(CMD_DIM,  np.float32)])
@@ -125,6 +141,19 @@ class CmdAnt(gym.Wrapper):
 
     def set_command(self, cmd: np.ndarray):
         self.command = np.array(cmd, dtype=np.float32)
+
+    def set_command_probs(self, stand_prob: float, forward_prob: float):
+        total = float(stand_prob + forward_prob)
+        if total <= 0.0:
+            return
+        self.command_probs["stand"] = stand_prob / total
+        self.command_probs["forward"] = forward_prob / total
+
+    def sample_command(self) -> np.ndarray:
+        r = np.random.rand()
+        if r < self.command_probs["stand"]:
+            return CMD_STAND.copy()
+        return CMD_FORWARD.copy()
 
     def _obs(self, raw):
         return np.concatenate([raw, self.command]).astype(np.float32)
@@ -135,6 +164,14 @@ class CmdAnt(gym.Wrapper):
 
     def step(self, action):
         obs, _r, terminated, truncated, info = self.env.step(action)
+
+        if self.auto_schedule:
+            self.steps_since_cmd_change += 1
+            if self.steps_since_cmd_change >= self.command_duration:
+                self.command = self.sample_command()
+                self.steps_since_cmd_change = 0
+                self.command_duration = np.random.randint(100, 300)
+
         reward = self._reward(obs, action, info)
         return self._obs(obs), reward, terminated, truncated, info
 
@@ -192,8 +229,28 @@ class CmdAnt(gym.Wrapper):
         return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + joint_vel_pen + self._energy(action)
 
     def _r_forward(self, obs, action, info) -> float:
-        x_vel = float(info.get("x_velocity", 0.))
-        return x_vel + self._energy(action)
+        torso_z = float(obs[2])
+        quat_w  = float(obs[3])
+        x_vel   = float(info.get("x_velocity", 0.0))
+        y_vel   = float(info.get("y_velocity", 0.0))
+
+        posture_score = float(np.clip((torso_z - 0.45) / 0.30, 0.0, 1.0))
+        upright_score = float(np.clip(quat_w * quat_w, 0.0, 1.0))
+        forward_term  = float(np.clip(x_vel, -1.0, 2.0))
+        lateral_pen   = -0.2 * (y_vel * y_vel)
+
+        # Penalise standing still explicitly — being stationary under forward cmd is wrong
+        stillness_pen = -1.5 * float(np.exp(-8.0 * (x_vel**2 + y_vel**2)))
+
+        return (
+            0.8
+            + 1.1 * forward_term
+            + 0.4 * posture_score
+            + 0.4 * upright_score
+            + lateral_pen
+            + stillness_pen          # <-- contrastive penalty
+            + self._energy(action)
+        )
 
     def _r_rotate(self, obs, action, info, sign: int) -> float:
         # Placeholder — yaw rate reward goes here in stage 3/4
@@ -204,9 +261,11 @@ class CmdAnt(gym.Wrapper):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_env(command, seed=0):
+def make_env(command, seed=0, auto_schedule=False):
+    initial_command = np.array(command, dtype=np.float32).copy()
+
     def _init():
-        e = CmdAnt(command=command)
+        e = CmdAnt(command=initial_command, auto_schedule=auto_schedule)
         e.reset(seed=seed)
         return e
     return _init
@@ -271,8 +330,17 @@ class TrainingCallback(BaseCallback):
     improved by less than `plateau_threshold` vs the previous window.
     """
 
-    def __init__(self, log_every=20, plateau_window=100, plateau_threshold=0.5):
+    def __init__(
+        self,
+        total_steps: int,
+        use_curriculum: bool,
+        log_every=20,
+        plateau_window=100,
+        plateau_threshold=0.5,
+    ):
         super().__init__()
+        self.total_steps       = max(1, int(total_steps))
+        self.use_curriculum    = use_curriculum
         self.log_every         = log_every
         self.plateau_window    = plateau_window
         self.plateau_threshold = plateau_threshold
@@ -281,6 +349,13 @@ class TrainingCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         self._cur += self.locals["rewards"][0]
+
+    # Only update command probs every 1000 steps, not every step
+        if self.use_curriculum and self.num_timesteps % 1000 == 0:
+            progress = min(1.0, self.num_timesteps / self.total_steps)
+            stand_prob = max(0.3, 1.0 - progress)
+            forward_prob = 1.0 - stand_prob
+            self.training_env.env_method("set_command_probs", stand_prob, forward_prob)
 
         if self.locals["dones"][0]:
             self.ep_rewards.append(self._cur)
@@ -308,13 +383,14 @@ class TrainingCallback(BaseCallback):
 # ---------------------------------------------------------------------------
 
 def train(
-    command   = CMD_STAND,
+    command   = CMD_FORWARD,
     timesteps = 500_000,
     n_envs    = 10,
     seed      = 42,
     tag       = "stand",
     retrain   = False,
     algo      = "sac",
+    schedule  = False,
 ):
     if algo not in ALGORITHMS:
         raise ValueError(f"Unknown algorithm '{algo}'. Available: {', '.join(ALGORITHMS)}")
@@ -323,7 +399,7 @@ def train(
     device = ALGO_DEVICE[algo]
     model_stem = f"{MODEL_STEM}_{algo}"
 
-    env    = SubprocVecEnv([make_env(command, seed=seed+i) for i in range(n_envs)])
+    env    = SubprocVecEnv([make_env(command, seed=seed+i, auto_schedule=schedule) for i in range(n_envs)])
     latest = _latest_checkpoint(algo, tag)
 
     if latest and not retrain:
@@ -340,7 +416,13 @@ def train(
             **ALGO_KWARGS[algo],
         )
 
-    callback    = TrainingCallback(log_every=20, plateau_window=100, plateau_threshold=0.5)
+    callback    = TrainingCallback(
+        total_steps=timesteps,
+        use_curriculum=schedule,
+        log_every=20,
+        plateau_window=100,
+        plateau_threshold=0.5,
+    )
     interrupted = False
 
     def _sigint(sig, frame):
@@ -374,8 +456,9 @@ def train(
 
     try:
         env.close()
-    except BrokenPipeError:
-        pass  # subprocesses already dead from Ctrl+C — expected
+    except (BrokenPipeError, EOFError, ConnectionResetError):
+        # Subprocess env workers may already be gone after Ctrl+C.
+        pass
     return model
 
 
@@ -402,7 +485,7 @@ def run_inference(model_tag="stand"):
     Algo = ALGORITHMS[algo]
     model = Algo.load(str(latest), device=ALGO_DEVICE[algo])
 
-    env = CmdAnt(command=CMD_STAND, render_mode="rgb_array")
+    env = CmdAnt(command=CMD_STAND, render_mode="rgb_array", auto_schedule=False)
     obs, _ = env.reset(seed=0)
     current_cmd = CMD_STAND.copy()
     env.set_command(current_cmd)
@@ -468,6 +551,7 @@ def run_inference(model_tag="stand"):
 if __name__ == "__main__":
     mode    = sys.argv[1] if len(sys.argv) > 1 else "train"
     retrain = "--retrain" in sys.argv
+    schedule = "--schedule" in sys.argv
     algo    = "sac"
 
     for a in ALGORITHMS:
@@ -475,8 +559,8 @@ if __name__ == "__main__":
             algo = a
 
     if mode == "train":
-        train(command=CMD_STAND, timesteps=200_000, n_envs=10, tag="stand", retrain=retrain, algo=algo)
+        train(command=CMD_FORWARD, timesteps=200_000, n_envs=10, tag="forward", retrain=retrain, algo=algo, schedule=schedule)
     elif mode == "inference":
-        run_inference(model_tag="stand")
+        run_inference(model_tag="forward")
     else:
         print(__doc__)
