@@ -109,10 +109,14 @@ class CmdAnt(gym.Wrapper):
 
     def _reward(self, obs, action, info) -> float:
         w, a, d = self.command
-        if   w < .5 and a < .5 and d < .5: return self._r_stand(obs, action, info)
-        elif w > .5:                        return self._r_forward(obs, action, info)
-        elif a > .5:                        return self._r_rotate(obs, action, info, sign=+1)
-        else:                               return self._r_rotate(obs, action, info, sign=-1)
+        if   w < .5 and a < .5 and d < .5: 
+            return self._r_stand(obs, action, info)
+        elif w > .5:                        
+            return self._r_forward(obs, action, info)
+        elif a > .5:                        
+            return self._r_rotate(obs, action, info, sign=+1)
+        else:                               
+            return self._r_rotate(obs, action, info, sign=-1)
 
     def _energy(self, action) -> float:
         return -0.001 * float(np.sum(action ** 2))
@@ -170,5 +174,37 @@ class CmdAnt(gym.Wrapper):
         )
 
     def _r_rotate(self, obs, action, info, sign: int) -> float:
-        # TODO: yaw-rate reward for stage 3/4
-        return self._energy(action)
+        torso_z = float(obs[2])
+        quat_w = float(obs[3])
+
+        x_vel = float(info.get("x_velocity", 0.0))
+        y_vel = float(info.get("y_velocity", 0.0))
+
+        yaw_rate = float(obs[20])
+
+
+        if torso_z < 0.35:
+            return -5.0 + self._energy(action)
+
+        posture_score = float(np.clip((torso_z - 0.45) / 0.30, 0.0, 1.0))
+        upright_score = float(np.clip(quat_w * quat_w, 0.0, 1.0))
+
+        signed_yaw_rate = sign * yaw_rate
+        rotate_term = float(np.clip(signed_yaw_rate, -1.0, 2.0))
+
+        translation_pen = -0.4 * (x_vel ** 2 + y_vel ** 2)
+        wrong_dir_pen = -0.5 * max(0.0, -signed_yaw_rate)
+        stillness_pen = -1.0 * float(np.exp(-6.0 * (yaw_rate ** 2)))
+
+        return (
+            0.5
+            + 1.2 * rotate_term
+            + 0.4 * posture_score
+            + 0.4 * upright_score
+            + translation_pen
+            + wrong_dir_pen
+            + stillness_pen
+            + self._energy(action)
+        )
+    
+    
