@@ -65,3 +65,4 @@ timestamp,model,tag,final_reward,auc,steps,mode
 2026-05-28 12:17:07,ant_cmd_sac_right_20260528_121707,right,398.225,42233.8,100000,retrain
 2026-05-28 12:19:16,ant_cmd_sac_stand_20260528_121916,stand,3028.137,167707.9,100000,retrain
 2026-05-28 12:29:43,ant_cmd_ppo_left_20260528_122943,left,19.174,2556.0,19360,retrain
+2026-05-28 13:04:37,ant_cmd_sac_forward_20260528_130437,forward,132.750,32114.6,56210,retrain
