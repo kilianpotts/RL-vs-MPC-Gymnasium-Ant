@@ -183,8 +183,8 @@ class CmdAnt(gym.Wrapper):
         yaw_rate = float(obs[20])
 
 
-        if torso_z < 0.35:
-            return -5.0 + self._energy(action)
+#        if torso_z < 0.35:
+#            return -5.0 + self._energy(action)
 
         posture_score = float(np.clip((torso_z - 0.45) / 0.30, 0.0, 1.0))
         upright_score = float(np.clip(quat_w * quat_w, 0.0, 1.0))
