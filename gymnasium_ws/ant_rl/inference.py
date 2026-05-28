@@ -91,43 +91,28 @@ def _run_loop(active_model, current_cmd, cmd_to_model, window_name: str):
     finally:
         env.close()
         cv2.destroyAllWindows()
+        
+def infer_algo_from_path(model_path):
+    name = str(model_path).lower()
+    if "sac" in name:
+        return "sac"
+    elif "ppo" in name:
+        return "ppo"
+    else:
+        sys.exit("Model filename must contain 'sac' or 'ppo' to determine algorithm.")
 
 
-def run_inference(model_tag: str = "stand", algo: str = "sac"):
-    latest = latest_checkpoint(algo, model_tag)
-    if not latest:
-        sys.exit(f"No saved model for tag '{model_tag}' with algo '{algo}' - train first.")
+def run_inference(path: Path, algo: str = "sac"):
+    if not Path(path).exists():
+        sys.exit(f"Model path not found: {path}")
 
-    print(f"Loading {latest}.zip ...")
-    model = ALGORITHMS[algo].load(str(latest), device=ALGO_DEVICE[algo])
+    print(f"Loading {path} ...")
+    model = ALGORITHMS[algo].load(str(path), device=ALGO_DEVICE[algo])
 
     print("\n=== Inference (single model) ===")
     print("  W -> forward | A -> rotate left | D -> rotate right | ESC -> quit\n")
     _run_loop(model, CMD_STAND.copy(), cmd_to_model=None, window_name="Ant")
 
-
-def run_inference_multi(algo: str = "sac"):
-    """Multi-model inference using latest checkpoints by tag."""
-    tag_map = {
-        "stand": CMD_STAND,
-        "forward": CMD_FORWARD,
-        # "left": CMD_LEFT,
-        # "right": CMD_RIGHT,
-    }
-
-    model_map: dict[str, tuple[object, object]] = {}
-    for tag, cmd in tag_map.items():
-        ckpt = latest_checkpoint(algo, tag)
-        if ckpt is None:
-            print(f"  [warn] no checkpoint for tag '{tag}' - skipping")
-            continue
-        print(f"  Loading {tag}: {ckpt}.zip ...")
-        model_map[tag] = (ALGORITHMS[algo].load(str(ckpt), device=ALGO_DEVICE[algo]), cmd)
-
-    if not model_map:
-        sys.exit("No models found - train at least one stage first.")
-
-    run_inference_multi_paths(model_map)
 
 
 def run_inference_multi_paths(model_map: dict[str, tuple[object, object]]):

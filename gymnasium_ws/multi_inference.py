@@ -12,22 +12,33 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ant_rl.inference import build_model_map_from_paths, run_inference_multi_paths
+from ant_rl.inference import build_model_map_from_paths, run_inference_multi_paths, infer_algo_from_path
 
 
 # Placeholder filepaths: replace with your own model checkpoints.
 MODEL_PATHS = {
-	"stand": Path("/path/to/stand_model.zip"),
-	"forward": Path("/path/to/forward_model.zip"),
-	"left": Path("/path/to/left_model.zip"),
-	"right": Path("/path/to/right_model.zip"),
+	"stand": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_stand_20260528_083433.zip"),
+	#"forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_093547.zip"),
+	"forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_102014.zip"),
+	"left": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_left_20260528_100447.zip"),
+	"right": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_right_20260528_095628.zip"),
 }
 
 
 def main():
-	model_map = build_model_map_from_paths(MODEL_PATHS, algo="sac")
+	# Check all paths exist
+	for path in MODEL_PATHS.values():
+		if not path.exists():
+			raise FileNotFoundError(f"Model file not found: {path}")
+	
+	# Check all models use same algo
+	algos = {infer_algo_from_path(path) for path in MODEL_PATHS.values()}
+	if len(algos) > 1:
+		raise ValueError(f"All models must use the same algorithm, found: {algos}")
+	
+	algo = algos.pop()
+	model_map = build_model_map_from_paths(MODEL_PATHS, algo=algo)
 	run_inference_multi_paths(model_map)
-
 
 if __name__ == "__main__":
 	main()
