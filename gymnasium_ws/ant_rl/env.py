@@ -119,7 +119,13 @@ class CmdAnt(gym.Wrapper):
             return self._r_rotate(obs, action, info, sign=-1)
 
     def _energy(self, action) -> float:
-        return -0.001 * float(np.sum(action ** 2))
+        return -0.005 * float(np.sum(action ** 2))
+    
+
+    def _upright(self, obs) -> float:
+        qw, qx, qy, qz = obs[3:7]
+        up_z = 1.0 - 2.0 * (qx * qx + qy * qy)
+        return float(np.clip((up_z - 0.4) / 0.6, 0.0, 1.0))
 
     # ------------------------------------------------------------------
     # Reward functions
@@ -134,22 +140,27 @@ class CmdAnt(gym.Wrapper):
         joint_pos  = obs[7:15]
         hip_angles = joint_pos[[0, 2, 4, 6]]
         joint_vel  = obs[21:29]
+        roll_pitch_yaw_vel = obs[18:21]
 
         height_bon  =  5.0 * np.exp(-8.0 * max(0.0, 0.75 - torso_z))
         upright_bon =  2.0 * (quat_w ** 2)
         tilt_pen    = -0.5 * float(np.sum(quat_xyz ** 2))
         vel_pen     = -(x_vel ** 2 + y_vel ** 2) if torso_z > 0.3 else 0.0
+        ang_vel_pen = -0.5 * float(np.sum(obs[18:21] ** 2))
+
+        if torso_z < 0.35:
+            return -5.0 + self._energy(action)
 
         if torso_z > 0.7:
             hip_mean    = np.mean(hip_angles)
             excess      = np.maximum(0.0, np.abs(hip_angles - hip_mean) - 0.35)
             hip_sym_pen = -0.01 * float(np.mean(excess ** 2))
-            jv_pen      = -0.005 * float(np.sum(joint_vel ** 2))
+            jv_pen      = -0.02 * float(np.sum(joint_vel ** 2))
         else:
             hip_sym_pen = 0.0
             jv_pen      = 0.0
 
-        return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + jv_pen + self._energy(action)
+        return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + jv_pen + ang_vel_pen + self._energy(action)
 
     def _r_forward(self, obs, action, info) -> float:
         torso_z = float(obs[2])
@@ -175,32 +186,25 @@ class CmdAnt(gym.Wrapper):
 
     def _r_rotate(self, obs, action, info, sign: int) -> float:
         torso_z = float(obs[2])
-        quat_w = float(obs[3])
 
         x_vel = float(info.get("x_velocity", 0.0))
         y_vel = float(info.get("y_velocity", 0.0))
 
         yaw_rate = float(obs[20])
 
-
-#        if torso_z < 0.35:
-#            return -5.0 + self._energy(action)
-
-        posture_score = float(np.clip((torso_z - 0.45) / 0.30, 0.0, 1.0))
-        upright_score = float(np.clip(quat_w * quat_w, 0.0, 1.0))
-
+        upright_score = self._upright(obs)  
         signed_yaw_rate = sign * yaw_rate
-        rotate_term = float(np.clip(signed_yaw_rate, -1.0, 2.0))
+        target_yaw_rate = 1.0
+        yaw_error = signed_yaw_rate - target_yaw_rate
+        rotate_term = float(np.exp(-2.0 * (yaw_error ** 2))) * upright_score
 
         translation_pen = -0.4 * (x_vel ** 2 + y_vel ** 2)
         wrong_dir_pen = -0.5 * max(0.0, -signed_yaw_rate)
-        stillness_pen = -1.0 * float(np.exp(-6.0 * (yaw_rate ** 2)))
+        stillness_pen = -2.0 * float(np.exp(-6.0 * (yaw_rate ** 2)))
 
         return (
-            0.5
-            + 1.2 * rotate_term
-            + 0.4 * posture_score
-            + 0.4 * upright_score
+            3 * rotate_term
+            + 0.7 * upright_score
             + translation_pen
             + wrong_dir_pen
             + stillness_pen

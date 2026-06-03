@@ -52,7 +52,7 @@ def make_env(stage_probs: dict[str, float], seed: int = 0):
 # ---------------------------------------------------------------------------
 
 class TrainingCallback(BaseCallback):
-    def __init__(self, log_every=20, plateau_window=100, plateau_threshold=0.5):
+    def __init__(self, log_every=20, plateau_window=None, plateau_threshold=0.5):
         super().__init__()
         self.log_every         = log_every
         self.plateau_window    = plateau_window
@@ -97,7 +97,7 @@ class TrainingCallback(BaseCallback):
             self._print_csv_line(self._next_log_episode, episode_reward, float(avg_reward))
             self._next_log_episode += self.log_every
 
-        if n >= self.plateau_window * 2:
+        if self.plateau_window is not None and n >= self.plateau_window * 2:
             old = np.mean(self.ep_rewards[-self.plateau_window * 2 : -self.plateau_window])
             new = np.mean(self.ep_rewards[-self.plateau_window:])
             if abs(new - old) < self.plateau_threshold:
@@ -193,7 +193,7 @@ def train(
     
     callback = TrainingCallback(
         log_every=20,
-        plateau_window=100,
+        plateau_window=None,
         plateau_threshold=0.5,
     )
     interrupted = False

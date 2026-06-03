@@ -50,7 +50,17 @@ COMMANDS = {
     "right": CMD_RIGHT,
 }
 
-OUTPUT_DIR = Path("artifacts/videos")
+OUTPUT_BASE_DIR = Path("artifacts/videos")
+
+
+def get_output_dir(algo: str) -> Path:
+    """
+    Return algorithm-specific output directory.
+    Example:
+      artifacts/videos/SAC
+      artifacts/videos/PPO
+    """
+    return OUTPUT_BASE_DIR / algo.upper()
 
 
 def load_expert_model(command_name: str, algo: str):
@@ -85,7 +95,8 @@ def record_clip(
     """
     Record one clip for one expert model and one command.
     """
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = get_output_dir(algo)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     model = load_expert_model(command_name, algo)
 
@@ -126,8 +137,8 @@ def record_clip(
             f"Check whether render_mode='rgb_array' works."
         )
 
-    mp4_path = OUTPUT_DIR / f"{command_name}.mp4"
-    gif_path = OUTPUT_DIR / f"{command_name}.gif"
+    mp4_path = output_dir / f"{command_name}.mp4"
+    gif_path = output_dir / f"{command_name}.gif"
 
     imageio.mimsave(mp4_path, frames, fps=fps)
     print(f"Saved MP4: {mp4_path}")
@@ -156,7 +167,7 @@ def main():
     parser.add_argument(
         "--duration",
         type=float,
-        default=8.0,
+        default=12.0,
         help="Clip duration in seconds.",
     )
 
@@ -182,11 +193,13 @@ def main():
 
     args = parser.parse_args()
 
+    output_dir = get_output_dir(args.algo)
+
     print("\nRecording expert clips")
     print(f"  algorithm: {args.algo}")
     print(f"  duration:  {args.duration}s")
     print(f"  fps:       {args.fps}")
-    print(f"  output:    {OUTPUT_DIR}")
+    print(f"  output:    {output_dir}")
     print()
 
     for command_name, command in COMMANDS.items():
@@ -201,7 +214,7 @@ def main():
             save_gif=not args.no_gif,
         )
 
-    print(f"\nDone. Files saved in: {OUTPUT_DIR.resolve()}")
+    print(f"\nDone. Files saved in: {output_dir.resolve()}")
 
 
 if __name__ == "__main__":
