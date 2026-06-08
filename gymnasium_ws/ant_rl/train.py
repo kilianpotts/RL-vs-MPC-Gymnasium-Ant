@@ -13,7 +13,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 
 from .env import CmdAnt
-from .config import CMD_STAND, CMD_MAP, ALGO_KWARGS, ALGO_DEVICE, get_stage
+from .config import CMD_STAND, CMD_MAP, ALGO_KWARGS, ALGO_DEVICE, TRAINING, get_stage
 from .artifacts import init_artifact_dirs, latest_checkpoint, save_model, save_curve, append_log
 
 ALGORITHMS = {"sac": SAC, "ppo": PPO}
@@ -52,11 +52,13 @@ def make_env(stage_probs: dict[str, float], seed: int = 0):
 # ---------------------------------------------------------------------------
 
 class TrainingCallback(BaseCallback):
-    def __init__(self, log_every=20, plateau_window=None, plateau_threshold=0.5):
+    def __init__(self, log_every=20, plateau_window=1000, plateau_threshold=0.5, min_timesteps_before_stop=1_000_000,):
         super().__init__()
         self.log_every         = log_every
         self.plateau_window    = plateau_window
         self.plateau_threshold = plateau_threshold
+        self.min_timesteps_before_stop = min_timesteps_before_stop
+
         self.ep_rewards: list[float] = []
         self._cur_rewards: np.ndarray | None = None
         self._start_time = time.time()
@@ -97,12 +99,21 @@ class TrainingCallback(BaseCallback):
             self._print_csv_line(self._next_log_episode, episode_reward, float(avg_reward))
             self._next_log_episode += self.log_every
 
-        if self.plateau_window is not None and n >= self.plateau_window * 2:
+        if (
+        self.plateau_window is not None
+        and self.model.num_timesteps >= self.min_timesteps_before_stop
+        and n >= self.plateau_window * 2
+    ):
             old = np.mean(self.ep_rewards[-self.plateau_window * 2 : -self.plateau_window])
             new = np.mean(self.ep_rewards[-self.plateau_window:])
-            if abs(new - old) < self.plateau_threshold:
-                print(f"\nReward saturated (delta={new - old:.4f} over last "
-                        f"{self.plateau_window} eps) — stopping early.")
+            delta = new - old
+
+            if abs(delta) < self.plateau_threshold:
+                print(
+                    f"\nReward saturated "
+                    f"(delta={delta:.4f} over last {self.plateau_window} eps, "
+                    f"timesteps={self.model.num_timesteps}) — stopping early."
+                )
                 return False
 
         return True
@@ -192,9 +203,10 @@ def train(
         )
     
     callback = TrainingCallback(
-        log_every=20,
-        plateau_window=None,
-        plateau_threshold=0.5,
+        log_every=TRAINING["log_every"],
+        plateau_window=TRAINING["plateau_window"],
+        plateau_threshold=TRAINING["plateau_threshold"],
+        min_timesteps_before_stop=TRAINING["min_timesteps_before_stop"],
     )
     interrupted = False
     
