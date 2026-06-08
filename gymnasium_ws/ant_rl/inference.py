@@ -58,7 +58,7 @@ def _run_loop(active_model, current_cmd, cmd_to_model, window_name: str):
     cv2 = _get_cv2()
     env = CmdAnt(command=current_cmd, stage_probs={"stand": 1.0}, render_mode="rgb_array")
 
-    key_timeout_s = 0.15
+    key_timeout_s = 0.5
     last_key_time = 0.0
 
     try:
