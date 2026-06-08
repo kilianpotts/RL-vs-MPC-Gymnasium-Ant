@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import os
 import sys
 from pathlib import Path
@@ -50,12 +51,15 @@ def _read_command(key):
         return CMD_LEFT.copy()
     if key == KEY_D:
         return CMD_RIGHT.copy()
-    return CMD_STAND.copy()
+    return None
 
 
 def _run_loop(active_model, current_cmd, cmd_to_model, window_name: str):
     cv2 = _get_cv2()
     env = CmdAnt(command=current_cmd, stage_probs={"stand": 1.0}, render_mode="rgb_array")
+
+    key_timeout_s = 0.15
+    last_key_time = 0.0
 
     try:
         obs, _ = env.reset(seed=0)
@@ -66,8 +70,13 @@ def _run_loop(active_model, current_cmd, cmd_to_model, window_name: str):
             action, _ = active_model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, _ = env.step(action)
 
-            frame = _render_frame(cv2, env, current_cmd, reward,
-                                  suffix="[multi-expert]" if cmd_to_model is not None else None)
+            frame = _render_frame(
+                cv2,
+                env,
+                current_cmd,
+                reward,
+                suffix="[multi-expert]" if cmd_to_model is not None else None,
+            )
             if frame is not None:
                 cv2.imshow(window_name, frame)
 
@@ -76,18 +85,32 @@ def _run_loop(active_model, current_cmd, cmd_to_model, window_name: str):
                 break
 
             new_cmd = _read_command(key)
-            if cmd_to_model is not None:
-                new_key = tuple(new_cmd.astype(int))
-                if new_key in cmd_to_model:
-                    active_model, current_cmd = cmd_to_model[new_key]
-                    env.set_command(current_cmd)
-            else:
+
+            if new_cmd is not None:
                 current_cmd = new_cmd
+                last_key_time = time.monotonic()
+
+                if cmd_to_model is not None:
+                    new_key = tuple(current_cmd.astype(int))
+                    if new_key in cmd_to_model:
+                        active_model, current_cmd = cmd_to_model[new_key]
+
+                env.set_command(current_cmd)
+
+            elif time.monotonic() - last_key_time > key_timeout_s:
+                current_cmd = CMD_STAND.copy()
+
+                if cmd_to_model is not None:
+                    stand_key = tuple(current_cmd.astype(int))
+                    if stand_key in cmd_to_model:
+                        active_model, current_cmd = cmd_to_model[stand_key]
+
                 env.set_command(current_cmd)
 
             if terminated or truncated:
                 obs, _ = env.reset()
                 obs[-CMD_DIM:] = current_cmd
+
     finally:
         env.close()
         cv2.destroyAllWindows()

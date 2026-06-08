@@ -17,11 +17,11 @@ from ant_rl.inference import build_model_map_from_paths, run_inference_multi_pat
 
 # Placeholder filepaths: replace with your own model checkpoints.
 MODEL_PATHS = {
-	"stand": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_stand_20260528_083433.zip"),
+	"stand": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_stand_20260603_095542.zip"),
 	#"forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_093547.zip"),
-	"forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_102014.zip"),
-	"left": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_left_20260528_100447.zip"),
-	"right": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_right_20260528_095628.zip"),
+	"forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_130437.zip"),
+	"left": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_left_20260605_052733.zip"),
+	"right": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_right_20260603_143452.zip"),
 }
 
 
