@@ -1,0 +1,9 @@
+algo,device,seed,steps,wall_seconds,steps_per_second
+sac,cpu,0,10000,21.65,461.9
+sac,cpu,1,10000,20.36,491.1
+sac,auto,0,10000,17.53,570.4
+sac,auto,1,10000,18.92,528.4
+ppo,cpu,0,20480,22.72,901.3
+ppo,cpu,1,20480,21.8,939.3
+ppo,auto,0,20480,14.24,1438.0
+ppo,auto,1,20480,13.03,1571.9

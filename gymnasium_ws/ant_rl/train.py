@@ -145,6 +145,7 @@ def train(
     seed: int = 42,
     retrain: bool = False,
     algo: str = "sac",
+    algo_kwargs_override: dict = None,
 ):
     """
     Train a policy (expert or curriculum mode).
@@ -196,11 +197,8 @@ def train(
             print(f"--retrain: ignoring {latest}.zip — starting fresh.")
         else:
             print(f"New model — {mode_label} | algo: {algo}")
-        model = Algo(
-            "MlpPolicy", env,
-            verbose=0, seed=seed, device=device,
-            **ALGO_KWARGS[algo],
-        )
+        kwargs = {**ALGO_KWARGS[algo], **(algo_kwargs_override or {})}
+        model = Algo("MlpPolicy", env, verbose=0, seed=seed, device=device, **kwargs)
     
     callback = TrainingCallback(
         log_every=TRAINING["log_every"],
