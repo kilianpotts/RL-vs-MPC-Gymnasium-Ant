@@ -168,17 +168,23 @@ class CmdAnt(gym.Wrapper):
         x_vel   = float(info.get("x_velocity", 0.0))
         y_vel   = float(info.get("y_velocity", 0.0))
 
-        posture_score = float(np.clip((torso_z - 0.45) / 0.30, 0.0, 1.0))
-        upright_score = float(np.clip(quat_w * quat_w, 0.0, 1.0))
-        forward_term  = float(np.clip(x_vel, -1.0, 2.0))
-        lateral_pen   = -0.2  * (y_vel ** 2)
-        stillness_pen = -1.5  * float(np.exp(-8.0 * (x_vel**2 + y_vel**2)))
+        if torso_z < 0.45:
+            return -5.0 + self._energy(action)
+
+        posture_score = float(np.clip((torso_z - 0.55) / 0.25, 0.0, 1.0))
+        upright_score = float(np.clip((quat_w - 0.7) / 0.3, 0.0, 1.0))  # floor at 0.7, not 0
+
+        forward_term  = float(np.clip(x_vel, -0.5, 2.0))
+        backward_pen  = -0.6 * max(0.0, -x_vel)
+        lateral_pen   = -0.3 * (y_vel ** 2)
+        stillness_pen = -0.4 * float(np.exp(-3.0 * (x_vel ** 2)))  # halved, wider decay
 
         return (
-            0.8
-            + 1.1 * forward_term
-            + 0.4 * posture_score
-            + 0.4 * upright_score
+            0.5
+            + 1.2 * forward_term
+            + 0.5 * posture_score
+            + 0.5 * upright_score
+            + backward_pen
             + lateral_pen
             + stillness_pen
             + self._energy(action)
