@@ -4,15 +4,31 @@ train_expert.py — Train a single-command expert policy.
 Usage:
     python3 train_expert.py --command stand
     python3 train_expert.py --command forward --algo ppo
-    python3 train_expert.py --command stand --retrain
+    python3 train_expert.py --command stand --init-mode retrain
+    python3 train_expert.py --command forward --init-mode previous
+    python3 train_expert.py --command forward --init-mode resume
     python3 train_expert.py --command forward --algo ppo --terrain rough --terrain-roughness 0.35
 
 Examples:
-    python3 train_expert.py --command stand
-    python3 train_expert.py --command forward --algo ppo --retrain
-    python3 train_expert.py --command left
-    python3 train_expert.py --command right
-    python3 train_expert.py --command forward --terrain rough --terrain-roughness 0.35
+    # Start completely fresh, ignoring all checkpoints
+    python3 train_expert.py --command stand --init-mode retrain
+
+    # Continue training an existing expert model of the same command
+    python3 train_expert.py --command forward --algo ppo --init-mode resume
+
+    # Fine-tune a flat expert model on rough terrain
+    python3 train_expert.py --command forward --terrain rough --terrain-roughness 0.35 --init-mode previous
+
+    # Train turning experts
+    python3 train_expert.py --command left --init-mode retrain
+    python3 train_expert.py --command right --init-mode retrain
+
+Initialization modes:
+    retrain   Start a new model from scratch. No checkpoint is loaded.
+    previous  Load the previous/fallback checkpoint.
+              For rough terrain, this is the same command trained on flat terrain.
+              For flat expert training, this usually only exists if a fallback was configured.
+    resume    Continue from an existing checkpoint of the same command and terrain.
 """
 
 import argparse
@@ -47,9 +63,17 @@ def main():
     )
 
     parser.add_argument(
-        "--retrain",
-        action="store_true",
-        help="Start fresh, ignoring any existing checkpoints",
+        "--init-mode",
+        type=str,
+        default="resume",
+        choices=["retrain", "previous", "resume"],
+        help=(
+            "How to initialize training: "
+            "'retrain' starts fresh, "
+            "'previous' loads the previous/fallback model, "
+            "'resume' loads the current command checkpoint if available "
+            "(default: resume)"
+        ),
     )
 
     parser.add_argument(
@@ -72,7 +96,7 @@ def main():
     train_expert(
         command=args.command,
         algo=args.algo,
-        retrain=args.retrain,
+        init_mode=args.init_mode,
         timesteps=training_cfg["timesteps"],
         n_envs=training_cfg["n_envs"],
         seed=training_cfg["seed"],

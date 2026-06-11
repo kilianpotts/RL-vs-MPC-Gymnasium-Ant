@@ -41,7 +41,7 @@ class CmdAnt(gym.Wrapper):
         xml_file = os.path.join(
             os.path.dirname(__file__),
             "assets",
-            "ant_rough.xml",
+            "ant.xml",
         )
 
         base = gym.make(
@@ -158,9 +158,14 @@ class CmdAnt(gym.Wrapper):
     def _sample_command(self) -> np.ndarray:
         if not self._stage_names:
             return self.command.copy()
-        # Convert dict to probability array in correct order
-        probs = [self._stage_probs[name] for name in self._stage_names]
-        name = np.random.choice(self._stage_names, p=probs)
+
+        weights = np.array(
+            [self._stage_probs[name] for name in self._stage_names],
+            dtype=np.float64,
+        )
+        weights = weights / weights.sum()
+
+        name = np.random.choice(self._stage_names, p=weights)
         return CMD_MAP[name].copy()
 
     # ------------------------------------------------------------------
@@ -190,7 +195,7 @@ class CmdAnt(gym.Wrapper):
         # Reward für den Command berechnen, der auch in der vorherigen Observation stand.
         reward = self._reward(obs, action, info)
 
-        # Danach erst Command für den nächsten Schritt wechseln.
+        # Command für den nächsten Schritt wechseln.
         if self._stage_names:
             self._steps_held += 1
             if self._steps_held >= self._hold_for:

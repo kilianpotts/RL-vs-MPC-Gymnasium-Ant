@@ -116,3 +116,5 @@ timestamp,model,tag,final_reward,auc,steps,mode
 2026-06-05 07:08:22,ant_cmd_ppo_left_20260605_070822,left,45.809,-271155.5,1002900,retrain
 2026-06-07 20:52:05,ant_cmd_ppo_left_20260607_205205,left,2992.254,16823640.4,10014720,retrain
 2026-06-08 08:25:23,ant_cmd_ppo_left_20260608_082523,left,3284.205,28032842.5,13555600,retrain
+2026-06-11 09:07:31,ant_cmd_sac_forward_flat_20260611_090731,forward_flat,517.987,1226296.1,1875890,interrupted
+2026-06-11 11:38:08,ant_cmd_sac_left_flat_20260611_113808,left_flat,2849.130,6482503.6,3480510,interrupted

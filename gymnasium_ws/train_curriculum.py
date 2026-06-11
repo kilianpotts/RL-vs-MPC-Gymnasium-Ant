@@ -4,15 +4,33 @@ train_curriculum.py — Train a curriculum stage with multiple commands.
 Usage:
     python3 train_curriculum.py --stage cur_stand
     python3 train_curriculum.py --stage cur_forward --algo ppo
-    python3 train_curriculum.py --stage cur_stand --retrain
+    python3 train_curriculum.py --stage cur_stand --init-mode retrain
+    python3 train_curriculum.py --stage cur_forward --init-mode previous
+    python3 train_curriculum.py --stage cur_forward --init-mode resume
     python3 train_curriculum.py --stage cur_stand --terrain rough --terrain-roughness 0.35
 
 Examples:
-    python3 train_curriculum.py --stage cur_stand --algo ppo --retrain
-    python3 train_curriculum.py --stage cur_forward --algo ppo --terrain rough --terrain-roughness 0.35
+    # Start completely fresh, ignoring all checkpoints
+    python3 train_curriculum.py --stage cur_stand --algo ppo --init-mode retrain
+
+    # Initialize from the previous/fallback stage
+    python3 train_curriculum.py --stage cur_forward --algo ppo --init-mode previous
+
+    # Continue training an existing model of the same stage
+    python3 train_curriculum.py --stage cur_forward --algo ppo --init-mode resume
+
+    # Fine-tune a flat model on rough terrain
+    python3 train_curriculum.py --stage cur_forward --algo ppo --terrain rough --terrain-roughness 0.35 --init-mode previous
 
 The stage name must match a name in config.yaml curriculum.stages, and
 command probabilities are read from there.
+
+Initialization modes:
+    retrain   Start a new model from scratch. No checkpoint is loaded.
+    previous  Load the previous/fallback checkpoint.
+              For flat terrain, this is usually the previous curriculum stage.
+              For rough terrain, this is the same stage trained on flat terrain.
+    resume    Continue from an existing checkpoint of the same stage and terrain.
 """
 
 import argparse
@@ -33,7 +51,7 @@ def main():
     parser.add_argument(
         "--stage",
         type=str,
-        default="stand",
+        default="cur_5stand",
         help="Curriculum stage name from config.yaml (default: stand)",
     )
 
@@ -46,9 +64,17 @@ def main():
     )
 
     parser.add_argument(
-        "--retrain",
-        action="store_true",
-        help="Start fresh, ignoring any existing checkpoints",
+        "--init-mode",
+        type=str,
+        default="resume",
+        choices=["retrain", "previous", "resume"],
+        help=(
+            "How to initialize training: "
+            "'retrain' starts fresh, "
+            "'previous' loads the previous/fallback stage, "
+            "'resume' loads the current stage checkpoint if available "
+            "(default: resume)"
+        ),
     )
 
     parser.add_argument(
@@ -71,7 +97,7 @@ def main():
     train_curriculum(
         stage=args.stage,
         algo=args.algo,
-        retrain=args.retrain,
+        init_mode=args.init_mode,
         timesteps=training_cfg["timesteps"],
         n_envs=training_cfg["n_envs"],
         seed=training_cfg["seed"],

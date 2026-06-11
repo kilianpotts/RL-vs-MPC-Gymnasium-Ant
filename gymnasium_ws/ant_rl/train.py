@@ -153,7 +153,7 @@ def train(
     timesteps: int = 20_000,
     n_envs: int = 10,
     seed: int = 42,
-    retrain: bool = False,
+    init_mode: str = "resume",
     algo: str = "sac",
 
     algo_kwargs_override: dict = None,
@@ -178,6 +178,10 @@ def train(
         retrain: If True, start fresh and ignore existing checkpoints
         algo: Algorithm (sac or ppo)
     """
+
+    if init_mode not in ("retrain", "previous", "resume"):
+        raise ValueError("init_mode must be one of: retrain, previous, resume")
+
     if algo not in ALGORITHMS:
         raise ValueError(f"Unknown algo '{algo}'. Available: {', '.join(ALGORITHMS)}")
     
@@ -205,14 +209,27 @@ def train(
     if terrain not in ("flat", "rough"):
         raise ValueError("terrain must be 'flat' or 'rough'")
 
-    if terrain == "rough" and terrain_roughness <= 0.0:
+    if terrain == "flat":
+        terrain_roughness = 0.0
+    elif terrain_roughness <= 0.0:
         terrain_roughness = 0.35
 
-    terrain_tag = terrain
-    tag = f"{tag}_{terrain_tag}"
-    previous_tag = f"{previous_tag}_{terrain_tag}" if previous_tag else None
+    base_tag = tag
+    base_previous_tag = previous_tag
 
-    print(f"Terrain: {terrain} | roughness: {terrain_roughness}")
+    tag = f"{base_tag}_{terrain}"
+
+    if terrain == "rough":
+        # Für rough: von gleicher flat-stage initialisieren
+        previous_tag = f"{base_tag}_flat"
+    else:
+        # Für flat: klassische Curriculum-Kette
+        previous_tag = f"{base_previous_tag}_flat" if base_previous_tag else None
+
+    if terrain == "flat":
+        print("Terrain: flat | roughness: ignored")
+    else:
+        print(f"Terrain: rough | roughness: {terrain_roughness}")
 
     Algo = ALGORITHMS[algo]
     device = ALGO_DEVICE[algo]
@@ -231,29 +248,56 @@ def train(
     previous = latest_checkpoint(algo, previous_tag) if previous_tag else None
     resuming = False
 
-    if latest and not retrain:
-        print(f"Resuming current stage from {latest}.zip ...")
-        model = Algo.load(str(latest), env=env, device=device)
-        resuming = True
-
-    elif previous and not retrain:
-        print(f"No checkpoint for current stage '{tag}'.")
-        print(f"Initializing from previous stage '{previous_tag}': {previous}.zip ...")
-        model = Algo.load(str(previous), env=env, device=device)
-        resuming = True
-
-    else:
-        if retrain and latest:
-            print(f"--retrain: ignoring current stage checkpoint {latest}.zip — starting fresh.")
-        elif retrain and previous:
-            print(f"--retrain: ignoring previous stage checkpoint {previous}.zip — starting fresh.")
+    if init_mode == "resume":
+        if latest:
+            print(f"Resuming current stage from {latest}.zip ...")
+            model = Algo.load(str(latest), env=env, device=device)
+            resuming = True
         else:
-            print(f"New model — {mode_label} | algo: {algo}")
+            print(f"No checkpoint for current stage '{tag}' — starting fresh.")
+            kwargs = {**ALGO_KWARGS[algo], **(algo_kwargs_override or {})}
+            model = Algo(
+                "MlpPolicy",
+                env,
+                verbose=0,
+                seed=seed,
+                device=device,
+                **kwargs,
+            )
+
+    elif init_mode == "previous":
+        if previous:
+            print(f"Initializing from previous/fallback stage '{previous_tag}': {previous}.zip ...")
+            model = Algo.load(str(previous), env=env, device=device)
+            resuming = True
+        else:
+            print(f"No previous/fallback checkpoint '{previous_tag}' found — starting fresh.")
+            kwargs = {**ALGO_KWARGS[algo], **(algo_kwargs_override or {})}
+            model = Algo(
+                "MlpPolicy",
+                env,
+                verbose=0,
+                seed=seed,
+                device=device,
+                **kwargs,
+            )
+
+    else:  # init_mode == "retrain"
+        if latest:
+            print(f"--init-mode retrain: ignoring current stage checkpoint {latest}.zip.")
+        if previous:
+            print(f"--init-mode retrain: ignoring previous/fallback checkpoint {previous}.zip.")
+
+        print(f"New model — {mode_label} | algo: {algo}")
+
         kwargs = {**ALGO_KWARGS[algo], **(algo_kwargs_override or {})}
         model = Algo(
-            "MlpPolicy", env,
-            verbose=0, seed=seed, device=device,
-            **ALGO_KWARGS[algo],
+            "MlpPolicy",
+            env,
+            verbose=0,
+            seed=seed,
+            device=device,
+            **kwargs,
         )
     
     callback = TrainingCallback(
@@ -292,7 +336,7 @@ def train(
         tag=tag,
         ep_rewards=callback.ep_rewards,
         steps=model.num_timesteps,
-        mode="interrupted" if interrupted else ("retrain" if retrain else "resume"),
+        mode="interrupted" if interrupted else init_mode,
     )
     
     if interrupted:

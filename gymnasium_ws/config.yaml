@@ -24,7 +24,7 @@ training:
 algorithms:
   sac:
     device:         "auto"
-    learning_rate:  0.0003
+    learning_rate:  0.0001
     buffer_size:    500000
     batch_size:     256
     gamma:          0.99
@@ -61,17 +61,16 @@ curriculum:
     - name: cur_turns
       commands:
         stand: 0.4
-        #forward: 0.3
-        left: 0.3
-        right: 0.3
-      #previous: cur_forward
-      previous: cur_stand
+        forward: 0.3
+        left: 0.15
+        right: 0.15
+      previous: cur_forward
 
 
     - name: cur_all
       commands:
-        stand: 0.34
-        #forward: 0.25
-        left: 0.33
-        right: 0.33
+        stand: 0.25
+        forward: 0.25
+        left: 0.25
+        right: 0.25
       previous: cur_turns

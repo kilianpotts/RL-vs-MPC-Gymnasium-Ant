@@ -1,3 +1,34 @@
+"""
+inference.py — Single-model inference endpoint.
+
+Run a trained policy in the Ant environment.
+
+Usage:
+    python3 inference.py --model path/to/model.zip
+    python3 inference.py --model artifacts/models/sac/cur_forward_flat/latest.zip
+    python3 inference.py --model artifacts/models/sac/cur_forward_rough/latest.zip --terrain rough --terrain-roughness 0.35
+
+Examples:
+    # Run a flat-terrain model
+    python3 inference.py --model artifacts/models/sac/cur_forward_flat/latest.zip
+
+    # Run a rough-terrain model
+    python3 inference.py --model artifacts/models/sac/cur_forward_rough/latest.zip --terrain rough --terrain-roughness 0.35
+
+Arguments:
+    --model              Path to the trained model .zip file.
+    --terrain            Terrain type to use: flat or rough. Default: flat.
+    --terrain-roughness  Rough terrain strength. Only used with --terrain rough.
+
+Notes:
+    Use a model that matches the selected terrain.
+
+    For flat terrain, use a *_flat model.
+    For rough terrain, use a *_rough model.
+
+    The terrain roughness value is ignored when --terrain flat is selected.
+"""
+
 import argparse
 import sys
 from pathlib import Path
