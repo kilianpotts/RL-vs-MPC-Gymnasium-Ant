@@ -260,27 +260,54 @@ class CmdAnt(gym.Wrapper):
 
     def _r_forward(self, obs, action, info) -> float:
         torso_z = float(obs[2])
-        x_vel   = float(info.get("x_velocity", 0.0))
-        y_vel   = float(info.get("y_velocity", 0.0))
 
         if torso_z < 0.35:
             return -5.0 + self._energy(action)
 
-        upright = self._upright(obs)  # already in [0,1], consistent with _r_rotate
+        x_vel = float(info.get("x_velocity", 0.0))
+        y_vel = float(info.get("y_velocity", 0.0))
 
-        # Target speed with gaussian shaping, gated by upright — mirrors _r_rotate's structure
-        target_vel    = 1.5
-        vel_error     = x_vel - target_vel
-        forward_term = np.exp(-1.5 * vel_error**2) * (0.3 + 0.7 * upright)
+        upright = self._upright(obs)
 
-        backward_pen  = -1.0 * max(0.0, -x_vel)   # stronger discouragement
-        lateral_pen   = -0.3 * (y_vel ** 2)
+        # ----------------------------
+        # locomotion objective
+        # ----------------------------
+
+        target_vel = 1.0     # slower walk than current 1.5
+
+        vel_error = x_vel - target_vel
+
+        forward_term = np.exp(-2.0 * vel_error**2)
+
+        # ----------------------------
+        # smoothness terms
+        # ----------------------------
+
+        z_vel = float(obs[17])
+
+        ang_vel = obs[18:21]
+        joint_vel = obs[21:29]
+
+        bounce_pen = -0.5 * (z_vel ** 2)
+
+        ang_vel_pen = -0.05 * float(np.sum(ang_vel ** 2))
+
+        joint_vel_pen = -0.01 * float(np.sum(joint_vel ** 2))
+
+        # discourage sideways drift
+        lateral_pen = -0.3 * (y_vel ** 2)
+
+        backward_pen = -1.0 * max(0.0, -x_vel)
+
 
         return (
-            3.0 * forward_term
-            + 0.7 * upright
-            + backward_pen
+            3.0 * forward_term * upright
+            + 0.8 * upright
+            + bounce_pen
+            + ang_vel_pen
+            + joint_vel_pen
             + lateral_pen
+            + backward_pen
             + self._energy(action)
         )
     def _r_rotate(self, obs, action, info, sign: int) -> float:
