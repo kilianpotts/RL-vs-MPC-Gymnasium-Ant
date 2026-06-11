@@ -25,7 +25,7 @@ algorithms:
   sac:
     device:         "auto"
     learning_rate:  0.0003
-    buffer_size:    1000000
+    buffer_size:    500000
     batch_size:     256
     gamma:          0.99
     tau:            0.005
@@ -44,13 +44,34 @@ algorithms:
     ent_coef:      0.0
 
 curriculum:
-  min_samples: 5    # min steps to hold a command before sampling a new one
-  max_samples: 20   # max steps to hold a command before sampling a new one
+  min_samples: 80    # min steps to hold a command before sampling a new one
+  max_samples: 200   # max steps to hold a command before sampling a new one
   stages:
-    - name: "stand"
+    - name: cur_stand
       commands:
         stand: 1.0
-    - name: "forward"
+      previous: null
+
+    - name: cur_forward
       commands:
-        stand:   0.2
-        forward: 0.8
+        stand: 0.6
+        forward: 0.4
+      previous: cur_stand
+
+    - name: cur_turns
+      commands:
+        stand: 0.4
+        #forward: 0.3
+        left: 0.3
+        right: 0.3
+      #previous: cur_forward
+      previous: cur_stand
+
+
+    - name: cur_all
+      commands:
+        stand: 0.34
+        #forward: 0.25
+        left: 0.33
+        right: 0.33
+      previous: cur_turns

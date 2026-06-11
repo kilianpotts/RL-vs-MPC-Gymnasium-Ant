@@ -7,6 +7,7 @@ and dispatches to command-specific reward functions.
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+import os
 
 from .config import (
     CMD_DIM, CMD_STAND, CMD_FORWARD, CMD_LEFT, CMD_RIGHT, CMD_MAP,
@@ -33,16 +34,34 @@ class CmdAnt(gym.Wrapper):
         command: np.ndarray = None,
         stage_probs: dict[str, float] = None,
         render_mode: str = None,
+        terrain: str = "flat",
+        terrain_roughness: float = 0.0,
     ):
+
+        xml_file = os.path.join(
+            os.path.dirname(__file__),
+            "assets",
+            "ant_rough.xml",
+        )
 
         base = gym.make(
             "Ant-v5",
+            xml_file=xml_file,
             render_mode=render_mode,
             exclude_current_positions_from_observation=False,
         )
         super().__init__(base)
 
-        self.command       = np.array(command, dtype=np.float32)
+        self.terrain = str(terrain).lower()
+        self.terrain_roughness = float(terrain_roughness)
+
+        if self.terrain not in ("flat", "rough"):
+            raise ValueError(f"Unknown terrain '{terrain}'. Use 'flat' or 'rough'.")
+
+        if command is None:
+            command = CMD_STAND
+
+        self.command = np.array(command, dtype=np.float32)
         
         # Command scheduling probabilities
         if stage_probs is None:
@@ -61,7 +80,77 @@ class CmdAnt(gym.Wrapper):
         hi = np.concatenate([high_base, np.ones(CMD_DIM, dtype=np.float32)])
         self.observation_space = spaces.Box(lo, hi, dtype=np.float32)
 
+    def _hfield_slice(self):
+        model = self.env.unwrapped.model
 
+        try:
+            hfield_id = model.hfield("terrain").id
+        except Exception:
+            return None
+
+        start = model.hfield_adr[hfield_id]
+        nrow = model.hfield_nrow[hfield_id]
+        ncol = model.hfield_ncol[hfield_id]
+        size = nrow * ncol
+
+        return model, start, size, nrow, ncol
+
+
+    def _clear_terrain(self):
+        data = self._hfield_slice()
+        if data is None:
+            return
+
+        model, start, size, _nrow, _ncol = data
+        model.hfield_data[start:start + size] = 0.0
+
+
+    def _smooth_heightfield(self, terrain: np.ndarray, passes: int = 4) -> np.ndarray:
+        for _ in range(passes):
+            terrain = (
+                terrain
+                + np.roll(terrain, 1, axis=0)
+                + np.roll(terrain, -1, axis=0)
+                + np.roll(terrain, 1, axis=1)
+                + np.roll(terrain, -1, axis=1)
+            ) / 5.0
+        return terrain
+
+
+    def _generate_terrain(self):
+        data = self._hfield_slice()
+        if data is None:
+            return
+
+        model, start, size, nrow, ncol = data
+
+        terrain = self.env.unwrapped.np_random.normal(
+            loc=0.0,
+            scale=1.0,
+            size=(nrow, ncol),
+        )
+
+        terrain = self._smooth_heightfield(terrain, passes=4)
+
+        # Startbereich in der Mitte etwas flacher halten
+        c0, c1 = nrow // 2, ncol // 2
+        flat_radius = 5
+        terrain[c0-flat_radius:c0+flat_radius, c1-flat_radius:c1+flat_radius] *= 0.10
+
+        # Auf 0..1 normalisieren
+        terrain -= terrain.min()
+        max_h = terrain.max()
+        if max_h > 1e-8:
+            terrain /= max_h
+
+        # terrain_roughness steuert, wie viel der XML-Höhe genutzt wird.
+        # Beispiel bei XML size-Höhe 0.20:
+        # 0.25 -> ca. 0.05 maximale Höhe
+        # 0.50 -> ca. 0.10 maximale Höhe
+        # 1.00 -> ca. 0.20 maximale Höhe
+        terrain *= self.terrain_roughness
+
+        model.hfield_data[start:start + size] = terrain.ravel()
 
     def _sample_hold_duration(self) -> int:
         return np.random.randint(CURRICULUM_MIN_SAMPLES, CURRICULUM_MAX_SAMPLES + 1)
@@ -87,22 +176,29 @@ class CmdAnt(gym.Wrapper):
 
     def reset(self, **kw):
         obs, info = self.env.reset(**kw)
+
+        if self.terrain == "rough":
+            self._generate_terrain()
+        else:
+            self._clear_terrain()
+
         return self._obs(obs), info
 
     def step(self, action):
         obs, _r, terminated, truncated, info = self.env.step(action)
 
-        # scheduling — sample new command after hold_for steps
+        # Reward für den Command berechnen, der auch in der vorherigen Observation stand.
+        reward = self._reward(obs, action, info)
+
+        # Danach erst Command für den nächsten Schritt wechseln.
         if self._stage_names:
             self._steps_held += 1
             if self._steps_held >= self._hold_for:
-                self.command     = self._sample_command()
+                self.command = self._sample_command()
                 self._steps_held = 0
-                self._hold_for   = self._sample_hold_duration()
+                self._hold_for = self._sample_hold_duration()
 
-        reward = self._reward(obs, action, info)
         return self._obs(obs), reward, terminated, truncated, info
-
     # ------------------------------------------------------------------
     # Reward dispatch
     # ------------------------------------------------------------------
@@ -197,16 +293,19 @@ class CmdAnt(gym.Wrapper):
 
         upright_score = self._upright(obs)  
         signed_yaw_rate = sign * yaw_rate
-        target_yaw_rate = 1.0
+
+        yaw_progress = float(np.clip(signed_yaw_rate, -1.0, 2.0))
+        target_yaw_rate = 1.2
         yaw_error = signed_yaw_rate - target_yaw_rate
-        rotate_term = float(np.exp(-2.0 * (yaw_error ** 2))) * upright_score
+        target_bonus = float(np.exp(-1.5 * (yaw_error ** 2))) * upright_score
 
         translation_pen = -0.4 * (x_vel ** 2 + y_vel ** 2)
         wrong_dir_pen = -0.5 * max(0.0, -signed_yaw_rate)
         stillness_pen = -2.0 * float(np.exp(-6.0 * (yaw_rate ** 2)))
 
         return (
-            3 * rotate_term
+            2 * yaw_progress
+            + 2 * target_bonus
             + 0.7 * upright_score
             + translation_pen
             + wrong_dir_pen

@@ -25,7 +25,12 @@ init_artifact_dirs()
 # Env factory
 # ---------------------------------------------------------------------------
 
-def make_env(stage_probs: dict[str, float], seed: int = 0):
+def make_env(
+    stage_probs: dict[str, float],
+    seed: int = 0,
+    terrain: str = "flat",
+    terrain_roughness: float = 0.0,
+):
     """
     stage_probs: {"stand": 0.2, "forward": 0.8}
     The initial command is sampled from stage_probs at env creation.
@@ -34,13 +39,18 @@ def make_env(stage_probs: dict[str, float], seed: int = 0):
 
     def _init():
         # Sample initial command from the stage distribution
-        names  = list(probs.keys())
-        total  = sum(probs.values())
-        p      = [v / total for v in probs.values()]
-        name   = np.random.choice(names, p=p)
-        cmd    = CMD_MAP[name].copy()
+        names = list(probs.keys())
+        total = sum(probs.values())
+        p = [v / total for v in probs.values()]
+        name = np.random.choice(names, p=p)
+        cmd = CMD_MAP[name].copy()
 
-        env = CmdAnt(command=cmd, stage_probs=probs)
+        env = CmdAnt(
+            command=cmd,
+            stage_probs=probs,
+            terrain=terrain,
+            terrain_roughness=terrain_roughness,
+        )
         env.reset(seed=seed)
         return env
 
@@ -145,7 +155,10 @@ def train(
     seed: int = 42,
     retrain: bool = False,
     algo: str = "sac",
+
     algo_kwargs_override: dict = None,
+    terrain: str = "flat",
+    terrain_roughness: float = 0.0,
 ):
     """
     Train a policy (expert or curriculum mode).
@@ -169,36 +182,79 @@ def train(
         raise ValueError(f"Unknown algo '{algo}'. Available: {', '.join(ALGORITHMS)}")
     
     # Determine mode and get stage_probs and tag
+    # Determine mode and get stage_probs and tag
     if command is not None:
         if command not in CMD_MAP:
             raise ValueError(f"Unknown command '{command}'. Available: {', '.join(CMD_MAP.keys())}")
         stage_probs = {command: 1.0}
         tag = command
+        previous_tag = None
         mode_label = f"expert ({command})"
+
     elif stage is not None:
         stage_cfg = get_stage(stage)
         stage_probs = stage_cfg["commands"]
         tag = stage_cfg["name"]
+        previous_tag = stage_cfg.get("previous")
         mode_label = f"curriculum ({stage})"
+
     else:
         raise ValueError("Must provide either 'command' (expert mode) or 'stage' (curriculum mode)")
     
+    terrain = str(terrain).lower()
+    if terrain not in ("flat", "rough"):
+        raise ValueError("terrain must be 'flat' or 'rough'")
+
+    if terrain == "rough" and terrain_roughness <= 0.0:
+        terrain_roughness = 0.35
+
+    terrain_tag = terrain
+    tag = f"{tag}_{terrain_tag}"
+    previous_tag = f"{previous_tag}_{terrain_tag}" if previous_tag else None
+
+    print(f"Terrain: {terrain} | roughness: {terrain_roughness}")
+
     Algo = ALGORITHMS[algo]
     device = ALGO_DEVICE[algo]
     
-    env = SubprocVecEnv([make_env(stage_probs, seed=seed + i) for i in range(n_envs)])
-    latest = latest_checkpoint(algo, tag)
+    env = SubprocVecEnv([
+        make_env(
+            stage_probs,
+            seed=seed + i,
+            terrain=terrain,
+            terrain_roughness=terrain_roughness,
+        )
+        for i in range(n_envs)
+    ])
     
+    latest = latest_checkpoint(algo, tag)
+    previous = latest_checkpoint(algo, previous_tag) if previous_tag else None
+    resuming = False
+
     if latest and not retrain:
-        print(f"Resuming from {latest}.zip ...")
+        print(f"Resuming current stage from {latest}.zip ...")
         model = Algo.load(str(latest), env=env, device=device)
+        resuming = True
+
+    elif previous and not retrain:
+        print(f"No checkpoint for current stage '{tag}'.")
+        print(f"Initializing from previous stage '{previous_tag}': {previous}.zip ...")
+        model = Algo.load(str(previous), env=env, device=device)
+        resuming = True
+
     else:
         if retrain and latest:
-            print(f"--retrain: ignoring {latest}.zip — starting fresh.")
+            print(f"--retrain: ignoring current stage checkpoint {latest}.zip — starting fresh.")
+        elif retrain and previous:
+            print(f"--retrain: ignoring previous stage checkpoint {previous}.zip — starting fresh.")
         else:
             print(f"New model — {mode_label} | algo: {algo}")
         kwargs = {**ALGO_KWARGS[algo], **(algo_kwargs_override or {})}
-        model = Algo("MlpPolicy", env, verbose=0, seed=seed, device=device, **kwargs)
+        model = Algo(
+            "MlpPolicy", env,
+            verbose=0, seed=seed, device=device,
+            **ALGO_KWARGS[algo],
+        )
     
     callback = TrainingCallback(
         log_every=TRAINING["log_every"],
@@ -217,7 +273,12 @@ def train(
     signal.signal(signal.SIGINT, _sigint)
     
     try:
-        model.learn(timesteps, callback=callback, log_interval=10)
+        model.learn(
+            total_timesteps=timesteps,
+            callback=callback,
+            log_interval=10,
+            reset_num_timesteps=not resuming,
+        )
         if not interrupted:
             print("\nTraining complete.")
     except KeyboardInterrupt:

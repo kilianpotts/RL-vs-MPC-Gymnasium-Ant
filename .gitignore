@@ -2,3 +2,5 @@ gymnasium_ws/artifacts/models
 gymnasium_ws/artifacts/curves
 __pycache__/
 antpilot.egg-info/
+.devcontainer/devcontainer.json
+.devcontainer/Dockerfile
