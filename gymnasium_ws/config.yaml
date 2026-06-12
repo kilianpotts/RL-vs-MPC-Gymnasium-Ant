@@ -2,6 +2,7 @@ artifacts:
   base:       "/workspaces/gymnasium_ws/artifacts"
   model_dir:  "models"
   curve_dir:  "curves"
+  training_csv_dir: "training"
   log_file:   "log.csv"
   model_stem: "ant_cmd"
 

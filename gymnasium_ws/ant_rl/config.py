@@ -30,6 +30,7 @@ _art       = _cfg["artifacts"]
 ARTIFACTS  = Path(_art["base"])
 MODEL_DIR  = ARTIFACTS / _art["model_dir"]
 CURVE_DIR  = ARTIFACTS / _art["curve_dir"]
+TRAINING_CSV_DIR = ARTIFACTS / _art["training_csv_dir"]
 LOG_FILE   = ARTIFACTS / _art["log_file"]
 MODEL_STEM = _art["model_stem"]
 

@@ -14,7 +14,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 from .env import CmdAnt
 from .config import CMD_STAND, CMD_MAP, ALGO_KWARGS, ALGO_DEVICE, TRAINING, get_stage
-from .artifacts import init_artifact_dirs, latest_checkpoint, save_model, save_curve, append_log
+from .artifacts import init_artifact_dirs, latest_checkpoint, save_model, save_curve, append_log, save_training_csv
 
 ALGORITHMS = {"sac": SAC, "ppo": PPO}
 
@@ -71,6 +71,9 @@ class TrainingCallback(BaseCallback):
 
         self.ep_rewards: list[float] = []
         self._cur_rewards: np.ndarray | None = None
+        self.ep_lengths: list[int] = []
+        self._cur_lengths: np.ndarray | None = None
+        self.ep_timesteps: list[int] = []
         self._start_time = time.time()
         self._printed_csv_header = False
         self._next_log_episode = log_every
@@ -93,13 +96,18 @@ class TrainingCallback(BaseCallback):
 
         if self._cur_rewards is None:
             self._cur_rewards = np.zeros_like(rewards, dtype=np.float64)
+            self._cur_lengths = np.zeros(len(rewards), dtype=np.int64)  
 
         self._cur_rewards += rewards
+        self._cur_lengths += 1  
 
         done_indices = np.flatnonzero(dones)
         for idx in done_indices:
             self.ep_rewards.append(float(self._cur_rewards[idx]))
             self._cur_rewards[idx] = 0.0
+            self.ep_lengths.append(int(self._cur_lengths[idx]))
+            self._cur_lengths[idx] = 0
+            self.ep_timesteps.append(self.model.num_timesteps) 
 
         n = len(self.ep_rewards)
 
@@ -331,6 +339,7 @@ def train(
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_path = save_model(model, algo, tag, ts)
     save_curve(callback.ep_rewards, tag, ts)
+    save_training_csv(callback.ep_rewards, callback.ep_lengths, callback.ep_timesteps, tag, ts)
     append_log(
         model_name=model_path.name,
         tag=tag,

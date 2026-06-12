@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from pathlib import Path
 
-from .config import MODEL_DIR, CURVE_DIR, LOG_FILE, MODEL_STEM
+from .config import MODEL_DIR, CURVE_DIR, LOG_FILE, MODEL_STEM, TRAINING_CSV_DIR
 
 
 def init_artifact_dirs():
@@ -55,6 +55,15 @@ def save_curve(ep_rewards: list, tag: str, ts: str) -> Path:
     fig.savefig(str(path), dpi=120)
     plt.close(fig)
     print(f"  saved curve  -> {path}")
+    return path
+
+def save_training_csv(ep_rewards: list, ep_lengths: list, ep_timesteps: list, tag: str, ts: str) -> Path:
+    path = TRAINING_CSV_DIR / f"training_{tag}_{ts}.csv"
+    with open(path, "w") as f:
+        f.write("episode,timestep,episode_reward,episode_length\n")
+        for i, (r, l, t) in enumerate(zip(ep_rewards, ep_lengths, ep_timesteps), start=1):
+            f.write(f"{i},{t},{r:.4f},{l}\n")
+    print(f"  saved training csv  -> {path}")
     return path
 
 
