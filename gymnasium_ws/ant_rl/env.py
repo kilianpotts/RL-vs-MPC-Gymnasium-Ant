@@ -74,11 +74,10 @@ class CmdAnt(gym.Wrapper):
         self._hold_for        = self._sample_hold_duration()
 
         # Extend observation space
-        low_base = self.env.observation_space.low.astype(np.float32, copy=False)
-        high_base = self.env.observation_space.high.astype(np.float32, copy=False)
-        lo = np.concatenate([low_base, np.zeros(CMD_DIM, dtype=np.float32)])
-        hi = np.concatenate([high_base, np.ones(CMD_DIM, dtype=np.float32)])
-        self.observation_space = spaces.Box(lo, hi, dtype=np.float32)
+        obs_dim = 26 + CMD_DIM
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
+        )
 
     def _hfield_slice(self):
         model = self.env.unwrapped.model
@@ -176,25 +175,44 @@ class CmdAnt(gym.Wrapper):
         """Manually override command (used during inference)."""
         self.command = np.array(cmd, dtype=np.float32)
 
-    def _obs(self, raw: np.ndarray) -> np.ndarray:
-        return np.concatenate([raw, self.command]).astype(np.float32)
+    def _obs(self, raw: np.ndarray, info: dict) -> np.ndarray:
+        qw, qx, qy, qz = raw[3:7]
+        yaw = np.arctan2(2*(qw*qz + qx*qy), 1 - 2*(qy*qy + qz*qz))
+
+        up_z   =  1.0 - 2.0*(qx*qx + qy*qy)
+        tilt_x =  2.0*(qw*qx + qy*qz)
+        tilt_y =  2.0*(qw*qy - qx*qz)
+
+        cos_y, sin_y = np.cos(yaw), np.sin(yaw)
+        x_vel = float(info.get("x_velocity", 0.0))
+        y_vel = float(info.get("y_velocity", 0.0))
+        fwd_vel =  cos_y*x_vel + sin_y*y_vel
+        lat_vel = -sin_y*x_vel + cos_y*y_vel
+
+        return np.array([
+            raw[2], #z height
+            up_z, tilt_x, tilt_y, #tilt (no yaw)
+            *raw[7:15],  # joint angles
+            fwd_vel, lat_vel, raw[17], #body-frame velocities
+            *raw[18:21], #angular velocities
+            *raw[21:29], #joint velocities
+            *self.command, #command
+        ], dtype=np.float32)
 
     def reset(self, **kw):
-        obs, info = self.env.reset(**kw)
-
+        raw, info = self.env.reset(**kw)
         if self.terrain == "rough":
             self._generate_terrain()
         else:
             self._clear_terrain()
-
-        return self._obs(obs), info
+        return self._obs(raw, info), info
 
     def step(self, action):
-        obs, _r, terminated, truncated, info = self.env.step(action)
+        raw, _r, terminated, truncated, info = self.env.step(action)
 
         # Reward für den Command berechnen, der auch in der vorherigen Observation stand.
-        reward = self._reward(obs, action, info)
-
+        reward = self._reward(raw, action, info)   # raw indices intact -> full observation
+        
         # Command für den nächsten Schritt wechseln.
         if self._stage_names:
             self._steps_held += 1
@@ -202,12 +220,12 @@ class CmdAnt(gym.Wrapper):
                 self.command = self._sample_command()
                 self._steps_held = 0
                 self._hold_for = self._sample_hold_duration()
-
-        return self._obs(obs), reward, terminated, truncated, info
+        # observations excluding x,y and yaw, plus the command
+        return self._obs(raw, info), reward, terminated, truncated, info
     # ------------------------------------------------------------------
     # Reward dispatch
     # ------------------------------------------------------------------
-
+    # uses raw observation space for reward calculation, actual obs for policy excludes global position and yaw
     def _reward(self, obs, action, info) -> float:
         w, a, d = self.command
         if   w < .5 and a < .5 and d < .5: 
