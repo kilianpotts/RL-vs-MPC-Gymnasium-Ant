@@ -266,11 +266,18 @@ class CmdAnt(gym.Wrapper):
     def _r_forward(self, obs, action, info) -> float:
         torso_z = float(obs[2])
 
-        if torso_z < 0.35:
-            return -5.0 + self._energy(action)
+        # if torso_z < 0.35:
+        #     return -1.5 + self._energy(action)
 
         x_vel = float(info.get("x_velocity", 0.0))
         y_vel = float(info.get("y_velocity", 0.0))
+
+        #project x_vel and y_vel into ant frame
+        qw, qx, qy, qz = obs[3:7]
+        # yaw from quaternion
+        yaw = np.arctan2(2*(qw*qz + qx*qy), 1 - 2*(qy*qy + qz*qz))
+        forward_vel =  np.cos(yaw)*x_vel + np.sin(yaw)*y_vel
+        lateral_vel = -np.sin(yaw)*x_vel + np.cos(yaw)*y_vel
 
         upright = self._upright(obs)
 
@@ -278,11 +285,12 @@ class CmdAnt(gym.Wrapper):
         # locomotion objective
         # ----------------------------
 
-        target_vel = 1.0     # slower walk than current 1.5
-
-        vel_error = x_vel - target_vel
-
-        forward_term = np.exp(-2.0 * vel_error**2)
+        # Prevent negative values from entering tanh to keep the gradient clean
+        clipped_forward_vel = max(0.0, forward_vel)
+        
+        # alpha=0.75 ensures the "knee" of the saturation curve is at 1.5 m/s
+        # Scale weight (e.g., 5.0) determines the maximum possible reward tokens
+        forward_term = 5.0 * float(np.tanh(0.75 * clipped_forward_vel))
 
         # ----------------------------
         # smoothness terms
@@ -293,20 +301,20 @@ class CmdAnt(gym.Wrapper):
         ang_vel = obs[18:21]
         joint_vel = obs[21:29]
 
-        bounce_pen = -0.5 * (z_vel ** 2)
+        #penalize bouncing more, to avoid hopping instead of smooth gait
+        bounce_pen = -1.5 * (z_vel ** 2)
 
         ang_vel_pen = -0.05 * float(np.sum(ang_vel ** 2))
 
         joint_vel_pen = -0.01 * float(np.sum(joint_vel ** 2))
 
         # discourage sideways drift
-        lateral_pen = -0.3 * (y_vel ** 2)
-
-        backward_pen = -1.0 * max(0.0, -x_vel)
+        lateral_pen = -0.3 * (lateral_vel ** 2)
+        backward_pen = -1.0 * max(0.0, -forward_vel)
 
 
         return (
-            3.0 * forward_term * upright
+            forward_term * upright
             + 0.8 * upright
             + bounce_pen
             + ang_vel_pen
