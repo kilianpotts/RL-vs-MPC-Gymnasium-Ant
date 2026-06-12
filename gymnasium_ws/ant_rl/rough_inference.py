@@ -1,4 +1,4 @@
-"""Single-model and multi-model (expert switching) inference helpers."""
+"""Single-model and multi-model rough-terrain inference helpers."""
 
 from __future__ import annotations
 
@@ -17,8 +17,9 @@ from .config import (
     CMD_NAMES,
     CMD_RIGHT,
     CMD_STAND,
+    DEFAULT_TERRAIN_ROUGHNESS,
 )
-from .env import CmdAnt
+from .rough_env import RoughCmdAnt
 
 ALGORITHMS = {"sac": SAC, "ppo": PPO}
 
@@ -40,7 +41,14 @@ def _get_cv2():
         sys.exit("opencv-python is required: pip install opencv-python")
 
 
-def _render_frame(cv2, env, current_cmd, reward, suffix: str | None = None):
+def _render_frame(
+    cv2,
+    env,
+    current_cmd,
+    reward,
+    terrain_roughness: float,
+    suffix: str | None = None,
+):
     frame = env.render()
     if frame is None:
         return None
@@ -68,11 +76,21 @@ def _render_frame(cv2, env, current_cmd, reward, suffix: str | None = None):
         1,
     )
 
+    cv2.putText(
+        frame,
+        f"roughness: {terrain_roughness:.2f}",
+        (10, 88),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (100, 200, 255),
+        1,
+    )
+
     if suffix:
         cv2.putText(
             frame,
             suffix,
-            (10, 88),
+            (10, 118),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (100, 200, 255),
@@ -97,15 +115,21 @@ def _run_loop(
     current_cmd,
     cmd_to_model,
     window_name: str,
+    terrain_roughness: float | None = None,
+    terrain_seed: int | None = None,
 ):
     cv2 = _get_cv2()
 
-    env = CmdAnt(
+    if terrain_roughness is None:
+        terrain_roughness = DEFAULT_TERRAIN_ROUGHNESS
+
+    env = RoughCmdAnt(
         command=current_cmd,
         stage_probs={"stand": 1.0},
         render_mode="rgb_array",
+        terrain_roughness=terrain_roughness,
+        terrain_seed=terrain_seed,
     )
-
 
     key_timeout_s = 0.5
     last_key_time = 0.0
@@ -125,6 +149,7 @@ def _run_loop(
                 env,
                 current_cmd,
                 reward,
+                terrain_roughness=terrain_roughness,
                 suffix="[multi-expert]" if cmd_to_model is not None else None,
             )
 
@@ -183,32 +208,42 @@ def infer_algo_from_path(model_path):
 def run_inference(
     path: Path,
     algo: str = "sac",
+    terrain_roughness: float | None = None,
+    terrain_seed: int | None = None,
 ):
     if not Path(path).exists():
         sys.exit(f"Model path not found: {path}")
 
+    if terrain_roughness is None:
+        terrain_roughness = DEFAULT_TERRAIN_ROUGHNESS
 
     print(f"Loading {path} ...")
     model = ALGORITHMS[algo].load(str(path), device=ALGO_DEVICE[algo])
 
-    print("\n=== Inference (single model) ===")
+    print("\n=== Rough Inference (single model) ===")
     print("  W -> forward | A -> rotate left | D -> rotate right | ESC -> quit")
+    print(f"  Roughness: {terrain_roughness}")
+    print(f"  Terrain seed: {terrain_seed if terrain_seed is not None else 'random'}")
 
     try:
         _run_loop(
             model,
             CMD_STAND.copy(),
             cmd_to_model=None,
-            window_name="Ant",
+            window_name="Ant Rough",
+            terrain_roughness=terrain_roughness,
+            terrain_seed=terrain_seed,
         )
     except KeyboardInterrupt:
-        print("\nInference stopped.")
+        print("\nRough inference stopped.")
 
 
 def run_inference_multi_paths(
     model_map: dict[str, tuple[object, object]],
+    terrain_roughness: float | None = None,
+    terrain_seed: int | None = None,
 ):
-    """Multi-model inference from explicit loaded model map.
+    """Multi-model rough inference from explicit loaded model map.
 
     model_map format:
       {
@@ -219,6 +254,8 @@ def run_inference_multi_paths(
     if not model_map:
         sys.exit("No models provided.")
 
+    if terrain_roughness is None:
+        terrain_roughness = DEFAULT_TERRAIN_ROUGHNESS
 
     cmd_to_model = {
         tuple(cmd.astype(int)): (model, cmd)
@@ -230,19 +267,23 @@ def run_inference_multi_paths(
     else:
         active_model, current_cmd = next(iter(model_map.values()))
 
-    print("\n=== Inference (multi-model expert switching) ===")
+    print("\n=== Rough Inference (multi-model expert switching) ===")
     print("  W -> forward | A -> rotate left | D -> rotate right | ESC -> quit")
     print(f"  Loaded experts: {list(model_map.keys())}")
+    print(f"  Roughness: {terrain_roughness}")
+    print(f"  Terrain seed: {terrain_seed if terrain_seed is not None else 'random'}")
 
     try:
         _run_loop(
             active_model,
             current_cmd,
             cmd_to_model=cmd_to_model,
-            window_name="Ant",
+            window_name="Ant Rough",
+            terrain_roughness=terrain_roughness,
+            terrain_seed=terrain_seed,
         )
     except KeyboardInterrupt:
-        print("\nInference stopped.")
+        print("\nRough inference stopped.")
 
 
 def build_model_map_from_paths(model_paths: dict[str, Path], algo: str = "sac"):

@@ -28,8 +28,6 @@ init_artifact_dirs()
 def make_env(
     stage_probs: dict[str, float],
     seed: int = 0,
-    terrain: str = "flat",
-    terrain_roughness: float = 0.0,
 ):
     """
     stage_probs: {"stand": 0.2, "forward": 0.8}
@@ -48,8 +46,6 @@ def make_env(
         env = CmdAnt(
             command=cmd,
             stage_probs=probs,
-            terrain=terrain,
-            terrain_roughness=terrain_roughness,
         )
         env.reset(seed=seed)
         return env
@@ -165,8 +161,6 @@ def train(
     algo: str = "sac",
 
     algo_kwargs_override: dict = None,
-    terrain: str = "flat",
-    terrain_roughness: float = 0.0,
 ):
     """
     Train a policy (expert or curriculum mode).
@@ -213,31 +207,6 @@ def train(
     else:
         raise ValueError("Must provide either 'command' (expert mode) or 'stage' (curriculum mode)")
     
-    terrain = str(terrain).lower()
-    if terrain not in ("flat", "rough"):
-        raise ValueError("terrain must be 'flat' or 'rough'")
-
-    if terrain == "flat":
-        terrain_roughness = 0.0
-    elif terrain_roughness <= 0.0:
-        terrain_roughness = 0.35
-
-    base_tag = tag
-    base_previous_tag = previous_tag
-
-    tag = f"{base_tag}_{terrain}"
-
-    if terrain == "rough":
-        # Für rough: von gleicher flat-stage initialisieren
-        previous_tag = f"{base_tag}_flat"
-    else:
-        # Für flat: klassische Curriculum-Kette
-        previous_tag = f"{base_previous_tag}_flat" if base_previous_tag else None
-
-    if terrain == "flat":
-        print("Terrain: flat | roughness: ignored")
-    else:
-        print(f"Terrain: rough | roughness: {terrain_roughness}")
 
     Algo = ALGORITHMS[algo]
     device = ALGO_DEVICE[algo]
@@ -246,8 +215,6 @@ def train(
         make_env(
             stage_probs,
             seed=seed + i,
-            terrain=terrain,
-            terrain_roughness=terrain_roughness,
         )
         for i in range(n_envs)
     ])

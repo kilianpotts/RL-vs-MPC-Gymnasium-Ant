@@ -2,16 +2,24 @@
 antpilot/env.py
 CmdAnt — Ant-v5 wrapper that appends a command vector to observations
 and dispatches to command-specific reward functions.
+
+This is the default environment used for training and normal inference.
+It uses the standard Gymnasium Ant-v5 environment without a custom XML file.
 """
 
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import os
 
 from .config import (
-    CMD_DIM, CMD_STAND, CMD_FORWARD, CMD_LEFT, CMD_RIGHT, CMD_MAP,
-    CURRICULUM_MIN_SAMPLES, CURRICULUM_MAX_SAMPLES,
+    CMD_DIM,
+    CMD_STAND,
+    CMD_FORWARD,
+    CMD_LEFT,
+    CMD_RIGHT,
+    CMD_MAP,
+    CURRICULUM_MIN_SAMPLES,
+    CURRICULUM_MAX_SAMPLES,
 )
 
 
@@ -26,7 +34,6 @@ class CmdAnt(gym.Wrapper):
       [1, 0, 0]  ->  forward      (W)
       [0, 1, 0]  ->  rotate left  (A)
       [0, 0, 1]  ->  rotate right (D)
-
     """
 
     def __init__(
@@ -34,44 +41,52 @@ class CmdAnt(gym.Wrapper):
         command: np.ndarray = None,
         stage_probs: dict[str, float] = None,
         render_mode: str = None,
-        terrain: str = "flat",
-        terrain_roughness: float = 0.0,
+        base_env=None,
     ):
+        """
+        Parameters
+        ----------
+        command:
+            Fixed command vector. If None, CMD_STAND is used.
 
-        xml_file = os.path.join(
-            os.path.dirname(__file__),
-            "assets",
-            "ant.xml",
-        )
+        stage_probs:
+            Optional command sampling probabilities for curriculum training.
+            Example:
+                {"stand": 0.2, "forward": 0.8}
 
-        base = gym.make(
-            "Ant-v5",
-            xml_file=xml_file,
-            render_mode=render_mode,
-            exclude_current_positions_from_observation=False,
-        )
-        super().__init__(base)
+        render_mode:
+            Gymnasium render mode. Usually None for training and "human" for inference.
 
-        self.terrain = str(terrain).lower()
-        self.terrain_roughness = float(terrain_roughness)
+        base_env:
+            Optional pre-created Ant-v5 environment.
+            This is mainly used by rough_env.py, so the same wrapper/reward logic
+            can be reused with a custom XML environment.
+        """
 
-        if self.terrain not in ("flat", "rough"):
-            raise ValueError(f"Unknown terrain '{terrain}'. Use 'flat' or 'rough'.")
+        if base_env is None:
+            base_env = gym.make(
+                "Ant-v5",
+                render_mode=render_mode,
+                exclude_current_positions_from_observation=False,
+            )
+
+        super().__init__(base_env)
 
         if command is None:
             command = CMD_STAND
 
         self.command = np.array(command, dtype=np.float32)
-        
+
         # Command scheduling probabilities
         if stage_probs is None:
             stage_probs = {}
+
         self._stage_probs = stage_probs
         self._stage_names = list(stage_probs.keys())
 
         # Scheduling state
-        self._steps_held      = 0
-        self._hold_for        = self._sample_hold_duration()
+        self._steps_held = 0
+        self._hold_for = self._sample_hold_duration()
 
         # Extend observation space
         obs_dim = 26 + CMD_DIM
@@ -79,80 +94,16 @@ class CmdAnt(gym.Wrapper):
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
         )
 
-    def _hfield_slice(self):
-        model = self.env.unwrapped.model
-
-        try:
-            hfield_id = model.hfield("terrain").id
-        except Exception:
-            return None
-
-        start = model.hfield_adr[hfield_id]
-        nrow = model.hfield_nrow[hfield_id]
-        ncol = model.hfield_ncol[hfield_id]
-        size = nrow * ncol
-
-        return model, start, size, nrow, ncol
-
-
-    def _clear_terrain(self):
-        data = self._hfield_slice()
-        if data is None:
-            return
-
-        model, start, size, _nrow, _ncol = data
-        model.hfield_data[start:start + size] = 0.0
-
-
-    def _smooth_heightfield(self, terrain: np.ndarray, passes: int = 4) -> np.ndarray:
-        for _ in range(passes):
-            terrain = (
-                terrain
-                + np.roll(terrain, 1, axis=0)
-                + np.roll(terrain, -1, axis=0)
-                + np.roll(terrain, 1, axis=1)
-                + np.roll(terrain, -1, axis=1)
-            ) / 5.0
-        return terrain
-
-
-    def _generate_terrain(self):
-        data = self._hfield_slice()
-        if data is None:
-            return
-
-        model, start, size, nrow, ncol = data
-
-        terrain = self.env.unwrapped.np_random.normal(
-            loc=0.0,
-            scale=1.0,
-            size=(nrow, ncol),
-        )
-
-        terrain = self._smooth_heightfield(terrain, passes=4)
-
-        # Startbereich in der Mitte etwas flacher halten
-        c0, c1 = nrow // 2, ncol // 2
-        flat_radius = 5
-        terrain[c0-flat_radius:c0+flat_radius, c1-flat_radius:c1+flat_radius] *= 0.10
-
-        # Auf 0..1 normalisieren
-        terrain -= terrain.min()
-        max_h = terrain.max()
-        if max_h > 1e-8:
-            terrain /= max_h
-
-        # terrain_roughness steuert, wie viel der XML-Höhe genutzt wird.
-        # Beispiel bei XML size-Höhe 0.20:
-        # 0.25 -> ca. 0.05 maximale Höhe
-        # 0.50 -> ca. 0.10 maximale Höhe
-        # 1.00 -> ca. 0.20 maximale Höhe
-        terrain *= self.terrain_roughness
-
-        model.hfield_data[start:start + size] = terrain.ravel()
+    
+    # ------------------------------------------------------------------
+    # Command scheduling
+    # ------------------------------------------------------------------
 
     def _sample_hold_duration(self) -> int:
-        return np.random.randint(CURRICULUM_MIN_SAMPLES, CURRICULUM_MAX_SAMPLES + 1)
+        return np.random.randint(
+            CURRICULUM_MIN_SAMPLES,
+            CURRICULUM_MAX_SAMPLES + 1,
+        )
 
     def _sample_command(self) -> np.ndarray:
         if not self._stage_names:
@@ -172,7 +123,7 @@ class CmdAnt(gym.Wrapper):
     # ------------------------------------------------------------------
 
     def set_command(self, cmd: np.ndarray):
-        """Manually override command (used during inference)."""
+        """Manually override command, used during inference."""
         self.command = np.array(cmd, dtype=np.float32)
 
     def _obs(self, raw: np.ndarray, info: dict) -> np.ndarray:
@@ -200,11 +151,8 @@ class CmdAnt(gym.Wrapper):
         ], dtype=np.float32)
 
     def reset(self, **kw):
+
         raw, info = self.env.reset(**kw)
-        if self.terrain == "rough":
-            self._generate_terrain()
-        else:
-            self._clear_terrain()
         return self._obs(raw, info), info
 
     def step(self, action):
@@ -216,30 +164,33 @@ class CmdAnt(gym.Wrapper):
         # Command für den nächsten Schritt wechseln.
         if self._stage_names:
             self._steps_held += 1
+
             if self._steps_held >= self._hold_for:
                 self.command = self._sample_command()
                 self._steps_held = 0
                 self._hold_for = self._sample_hold_duration()
+
         # observations excluding x,y and yaw, plus the command
         return self._obs(raw, info), reward, terminated, truncated, info
+
     # ------------------------------------------------------------------
     # Reward dispatch
     # ------------------------------------------------------------------
     # uses raw observation space for reward calculation, actual obs for policy excludes global position and yaw
     def _reward(self, obs, action, info) -> float:
         w, a, d = self.command
-        if   w < .5 and a < .5 and d < .5: 
+
+        if w < 0.5 and a < 0.5 and d < 0.5:
             return self._r_stand(obs, action, info)
-        elif w > .5:                        
+        elif w > 0.5:
             return self._r_forward(obs, action, info)
-        elif a > .5:                        
+        elif a > 0.5:
             return self._r_rotate(obs, action, info, sign=+1)
-        else:                               
+        else:
             return self._r_rotate(obs, action, info, sign=-1)
 
     def _energy(self, action) -> float:
         return -0.005 * float(np.sum(action ** 2))
-    
 
     def _upright(self, obs) -> float:
         qw, qx, qy, qz = obs[3:7]
@@ -280,6 +231,7 @@ class CmdAnt(gym.Wrapper):
             jv_pen      = 0.0
 
         return height_bon + upright_bon + tilt_pen + vel_pen + hip_sym_pen + jv_pen + ang_vel_pen + self._energy(action)
+
 
     def _r_forward(self, obs, action, info) -> float:
         torso_z = float(obs[2])
@@ -330,7 +282,6 @@ class CmdAnt(gym.Wrapper):
         lateral_pen = -0.3 * (lateral_vel ** 2)
         backward_pen = -1.0 * max(0.0, -forward_vel)
 
-
         return (
             forward_term * upright
             + 0.8 * upright
@@ -341,18 +292,23 @@ class CmdAnt(gym.Wrapper):
             + backward_pen
             + self._energy(action)
         )
+
     def _r_rotate(self, obs, action, info, sign: int) -> float:
         torso_z = float(obs[2])
+
+        if torso_z < 0.35:
+            return -5.0 + self._energy(action)
 
         x_vel = float(info.get("x_velocity", 0.0))
         y_vel = float(info.get("y_velocity", 0.0))
 
         yaw_rate = float(obs[20])
 
-        upright_score = self._upright(obs)  
+        upright_score = self._upright(obs)
         signed_yaw_rate = sign * yaw_rate
 
         yaw_progress = float(np.clip(signed_yaw_rate, -1.0, 2.0))
+
         target_yaw_rate = 1.2
         yaw_error = signed_yaw_rate - target_yaw_rate
         target_bonus = float(np.exp(-1.5 * (yaw_error ** 2))) * upright_score
@@ -362,13 +318,11 @@ class CmdAnt(gym.Wrapper):
         stillness_pen = -2.0 * float(np.exp(-6.0 * (yaw_rate ** 2)))
 
         return (
-            2 * yaw_progress
-            + 2 * target_bonus
+            2.0 * yaw_progress
+            + 2.0 * target_bonus
             + 0.7 * upright_score
             + translation_pen
             + wrong_dir_pen
             + stillness_pen
             + self._energy(action)
         )
-    
-    

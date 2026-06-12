@@ -118,3 +118,8 @@ timestamp,model,tag,final_reward,auc,steps,mode
 2026-06-08 08:25:23,ant_cmd_ppo_left_20260608_082523,left,3284.205,28032842.5,13555600,retrain
 2026-06-11 09:07:31,ant_cmd_sac_forward_flat_20260611_090731,forward_flat,517.987,1226296.1,1875890,interrupted
 2026-06-11 11:38:08,ant_cmd_sac_left_flat_20260611_113808,left_flat,2849.130,6482503.6,3480510,interrupted
+2026-06-12 13:48:16,ant_cmd_sac_cur_forward_20260612_134816,cur_forward,-1229.307,-149583.1,51760,interrupted
+2026-06-12 13:49:40,ant_cmd_sac_stand_20260612_134940,stand,2545.395,63585.0,57070,interrupted
+2026-06-12 13:50:04,ant_cmd_sac_stand_20260612_135004,stand,-186.176,-5522.7,3610,interrupted
+2026-06-12 13:50:52,ant_cmd_sac_left_20260612_135052,left,26.852,965.9,4310,interrupted
+2026-06-12 13:54:55,ant_cmd_sac_left_20260612_135455,left,21.660,875.3,3890,interrupted

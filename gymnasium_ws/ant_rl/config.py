@@ -93,3 +93,14 @@ def get_stage(name: str) -> dict:
             return stage
     raise ValueError(f"Unknown curriculum stage '{name}'. "
                      f"Available: {[s['name'] for s in CURRICULUM_STAGES]}")
+
+
+# ---------------------------------------------------------------------------
+# Terrain defaults
+# ---------------------------------------------------------------------------
+
+_terrain = _cfg.get("terrain", {})
+
+DEFAULT_TERRAIN_ROUGHNESS = float(
+    _terrain.get("default_roughness", 0.35)
+)
