@@ -1,5 +1,6 @@
 gymnasium_ws/artifacts/models
 gymnasium_ws/artifacts/curves
+gymnasium_ws/artifacts/training
 __pycache__/
 antpilot.egg-info/
 .devcontainer/devcontainer.json
