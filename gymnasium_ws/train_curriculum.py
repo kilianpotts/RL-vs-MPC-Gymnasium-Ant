@@ -46,8 +46,8 @@ def main():
     parser.add_argument(
         "--stage",
         type=str,
-        default="cur_5stand",
-        help="Curriculum stage name from config.yaml (default: cur_5stand)",
+        default="cur_stand",
+        help="Curriculum stage name from config.yaml (default: cur_stand)",
     )
 
     parser.add_argument(
@@ -57,6 +57,13 @@ def main():
         choices=["sac", "ppo"],
         help="Algorithm to use (default: sac)",
     )
+
+    parser.add_argument(
+    "--init-checkpoint",
+    type=str,
+    default=None,
+    help="Path to a checkpoint to initialize from",
+)
 
     parser.add_argument(
         "--init-mode",
@@ -78,6 +85,7 @@ def main():
         stage=args.stage,
         algo=args.algo,
         init_mode=args.init_mode,
+        init_checkpoint=args.init_checkpoint,
         timesteps=training_cfg["timesteps"],
         n_envs=training_cfg["n_envs"],
         seed=training_cfg["seed"],

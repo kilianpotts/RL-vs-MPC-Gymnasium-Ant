@@ -157,6 +157,7 @@ def train(
     timesteps: int = 20_000,
     n_envs: int = 10,
     seed: int = 42,
+    init_checkpoint: str | None = None,
     init_mode: str = "resume",
     algo: str = "sac",
 
@@ -223,7 +224,12 @@ def train(
     previous = latest_checkpoint(algo, previous_tag) if previous_tag else None
     resuming = False
 
-    if init_mode == "resume":
+    if init_checkpoint is not None:
+        print(f"Initializing from checkpoint: {init_checkpoint}")
+        model = Algo.load(init_checkpoint, env=env, device=device)
+        resuming = True
+        
+    elif init_mode == "resume":
         if latest:
             print(f"Resuming current stage from {latest}.zip ...")
             model = Algo.load(str(latest), env=env, device=device)
