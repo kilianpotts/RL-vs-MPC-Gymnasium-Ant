@@ -55,16 +55,16 @@ curriculum:
 
     - name: cur_forward
       commands:
-        stand: 0.6
-        forward: 0.4
+        stand: 0.3
+        forward: 0.7
       previous: cur_stand
 
     - name: cur_turns
       commands:
-        stand: 0.4
-        forward: 0.3
-        left: 0.15
-        right: 0.15
+        stand: 0.15
+        forward: 0.15
+        left: 0.45
+        right: 0.45
       previous: cur_forward
 
 
