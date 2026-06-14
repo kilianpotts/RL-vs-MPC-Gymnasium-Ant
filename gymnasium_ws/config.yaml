@@ -63,8 +63,8 @@ curriculum:
       commands:
         stand: 0.15
         forward: 0.15
-        left: 0.45
-        right: 0.45
+        left: 0.35
+        right: 0.35
       previous: cur_forward
 
 
