@@ -144,13 +144,13 @@ class RoughCmdAnt(CmdAnt):
 
         model.hfield_data[start:start + size] = terrain.ravel()
 
-# ------------------------------------------------------------------
-# Gym interface
-# ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Gym interface
+    # ------------------------------------------------------------------
 
-def reset(self, **kw):
-    raw, info = self.env.reset(**kw)
+    def reset(self, **kw):
+        raw, info = self.env.reset(**kw)
 
-    self._generate_terrain()
+        self._generate_terrain()
 
-    return self._obs(raw, info), info
+        return self._obs(raw, info), info
