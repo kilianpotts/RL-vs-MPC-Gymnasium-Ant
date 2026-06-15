@@ -44,7 +44,7 @@ command_sequence:
 terrain:
   roughness: 0.35
 
-output_dir: evaluation/results
+output_dir: /workspaces/gymnasium_ws/evaluation/results
 
 # Model paths per algorithm and policy type.
 # single: one model trained on all commands (curriculum).
