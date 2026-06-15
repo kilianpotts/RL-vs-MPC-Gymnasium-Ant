@@ -1,0 +1,67 @@
+# experiment_config.yaml
+
+# Command sequence: list of {command, steps} pairs.
+# Total should not exceed 1000 (one episode).
+command_sequence:
+  - command: stand
+    steps: 50
+  - command: forward
+    steps: 20
+  - command: left
+    steps: 30
+  - command: stand
+    steps: 30
+  - command: forward
+    steps: 50
+  - command: left
+    steps: 30
+  - command: right
+    steps: 30
+  - command: forward
+    steps: 100
+  - command: right
+    steps: 30
+  - command: forward
+    steps: 70
+  - command: stand
+    steps: 30
+  - command: left
+    steps: 30
+  - command: forward
+    steps: 50
+  - command: right
+    steps: 30
+  - command: forward
+    steps: 100
+  - command: stand
+    steps: 30
+  - command: left
+    steps: 30
+  - command: forward
+    steps: 50
+# Total: 970 steps
+
+terrain:
+  roughness: 0.35
+
+output_dir: evaluation/results
+
+# Model paths per algorithm and policy type.
+# single: one model trained on all commands (curriculum).
+# multi:  one model per command.
+models:
+  sac:
+    single: /workspaces/gymnasium_ws/evaluation/training/curriculum_sac/ant_cmd_sac_cur_turns_20260614_133512.zip
+    multi:
+      stand:   /workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_stand_20260613_093644.zip
+      forward: /workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_forward_20260613_050231.zip
+      left:    /workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_left_20260613_202811.zip
+      right:   /workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_right_20260613_210732.zip
+
+  ppo:
+    single: path/to/ppo_single_policy.zip
+    multi:
+      stand:   path/to/ppo_stand.zip
+      forward: path/to/ppo_forward.zip
+      left:    path/to/ppo_left.zip
+      right:   path/to/ppo_right.zip
