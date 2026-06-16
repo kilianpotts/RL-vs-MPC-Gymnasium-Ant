@@ -132,3 +132,4 @@ timestamp,model,tag,final_reward,auc,steps,mode
 2026-06-15 12:10:02,ant_cmd_ppo_cur_turns_20260615_121001,cur_turns,6.926,-176293.5,17000000,previous
 2026-06-15 12:32:12,ant_cmd_ppo_cur_forward_20260615_123212,cur_forward,-604.739,-30603.3,11430,interrupted
 2026-06-15 15:17:56,ant_cmd_ppo_cur_forward_20260615_151755,cur_forward,1630.197,25323873.3,19790000,previous
+2026-06-16 08:29:11,ant_cmd_ppo_cur_turns_20260616_082911,cur_turns,-80.771,-1232317.4,39780160,previous
