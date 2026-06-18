@@ -61,7 +61,7 @@ models:
   ppo:
     single: path/to/ppo_single_policy.zip
     multi:
-      stand:   path/to/ppo_stand.zip
-      forward: path/to/ppo_forward.zip
-      left:    path/to/ppo_left.zip
-      right:   path/to/ppo_right.zip
+      stand:   /workspaces/gymnasium_ws/evaluation/training/expert_ppo/ant_cmd_ppo_stand_20260614_150848.zip
+      forward: /workspaces/gymnasium_ws/evaluation/training/expert_ppo/ant_cmd_ppo_forward_20260614_125447.zip
+      left:    /workspaces/gymnasium_ws/evaluation/training/expert_ppo/ant_cmd_ppo_left_20260615_063702.zip
+      right:   /workspaces/gymnasium_ws/evaluation/training/expert_ppo/ant_cmd_ppo_right_20260615_093822.zip

@@ -27,11 +27,14 @@ def plot_expert_comparison(sac_path, ppo_path, output_path="expert_comparison.pd
     Generates a scaled, clean comparison plot from the target files.
     """
     plt.figure(figsize=(3.5, 2.8))
+
+    plt.rcParams['font.weight'] = 'medium'
+    plt.rcParams['axes.labelweight'] = 'medium'
     
     plt.rcParams['font.family'] = 'serif'
-    plt.rcParams['font.size'] = 8
-    plt.rcParams['axes.labelsize'] = 9
-    plt.rcParams['legend.fontsize'] = 7
+    plt.rcParams['font.size'] = 10.5
+    plt.rcParams['axes.labelsize'] = 10.5
+    plt.rcParams['legend.fontsize'] = 9.5
     
     if sac_path:
         sac_data = load_and_smooth_data(sac_path)
@@ -45,11 +48,10 @@ def plot_expert_comparison(sac_path, ppo_path, output_path="expert_comparison.pd
             plt.plot(ppo_data['timestep'], ppo_data['reward_smooth'], 
                      label='PPO (On-Policy)', color='#ff7f0e', linewidth=1)
     
-    plt.xlabel('Total Environment Steps')
+    plt.xlabel('Total Environment Steps', labelpad=10)
     plt.ylabel('Smoothed Episode Reward')
     plt.grid(True, linestyle='--', alpha=0.5, linewidth=0.5)
     plt.legend(loc='lower right', frameon=True, fancybox=False, edgecolor='black', framealpha=0.8)
-    
     plt.tight_layout()
     plt.savefig(output_path, bbox_inches='tight', dpi=300)
     print(f"Figure successfully saved to {output_path}")
@@ -58,7 +60,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot training performance metrics between SAC and PPO controllers.")
     parser.add_argument("--sac", type=str, help="Path to the SAC training curve CSV file.")
     parser.add_argument("--ppo", type=str, help="Path to the PPO training curve CSV file.")
-    parser.add_argument("--output", type=str, default="/workspaces/gymnasium_ws/evaluation/plots/cur_forward_comparison.pdf", help="Output destination for the PDF plot.")
+    parser.add_argument("--output", type=str, default="/workspaces/gymnasium_ws/evaluation/plots/forward_expert_comparison.pdf", help="Output destination for the PDF plot.")
     
     args = parser.parse_args()
     
