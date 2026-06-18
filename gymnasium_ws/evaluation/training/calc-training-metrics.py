@@ -1,3 +1,5 @@
+"""Compute summary training metrics from expert-training CSV exports."""
+
 import argparse
 import glob
 import os

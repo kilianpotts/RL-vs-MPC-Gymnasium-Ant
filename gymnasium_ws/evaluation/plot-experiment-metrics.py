@@ -1,3 +1,5 @@
+"""Plot reward traces for one or more experiment `metrics.csv` files."""
+
 import argparse
 from pathlib import Path
 
@@ -16,6 +18,7 @@ LINE_COLORS = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
 def shade_commands(ax, df):
+    """Draw background spans that indicate active command segments."""
     prev_cmd, start = df["command"].iloc[0], df["timestep"].iloc[0]
 
     for _, row in df.iterrows():

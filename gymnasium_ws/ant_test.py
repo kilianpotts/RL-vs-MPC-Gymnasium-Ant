@@ -1,7 +1,9 @@
+"""Quick OpenCV viewer smoke test for `Ant-v5` rgb_array rendering."""
+
 import gymnasium as gym
 import cv2
 
-# IMPORTANT: use rgb_array instead of human
+# Use rgb_array so frames can be displayed through OpenCV.
 env = gym.make("Ant-v5", render_mode="rgb_array")
 
 obs, info = env.reset()

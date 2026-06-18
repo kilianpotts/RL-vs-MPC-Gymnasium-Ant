@@ -47,6 +47,7 @@ OUTPUT_FILE = Path("grid_search_results.csv")
 
 
 def run_grid(algo: str, seeds: list[int]):
+    """Train/evaluate all grid points and write aggregate results to CSV."""
     grid = GRIDS[algo]
     keys = list(grid.keys())
     combos = list(itertools.product(*grid.values()))
@@ -119,6 +120,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    #Note: PPO is less sample efficient and so the 100000 steps did not suffice for convergence. 
-    # consider increasing timesteps, if using this result then clarify that it is not quite trustworthy. (pattern may arise nontheless)

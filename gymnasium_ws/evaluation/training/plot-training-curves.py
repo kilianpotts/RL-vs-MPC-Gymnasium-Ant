@@ -1,3 +1,5 @@
+"""Plot smoothed training rewards from SAC and/or PPO CSV logs."""
+
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
