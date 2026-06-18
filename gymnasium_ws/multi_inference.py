@@ -24,11 +24,10 @@ from ant_rl.inference import (
 
 # Placeholder filepaths: replace with your own model checkpoints.
 MODEL_PATHS = {
-    "stand": Path("/workspaces/gymnasium_ws/artifacts/models/old_models/ant_cmd_sac_stand_20260610_232545.zip"),
-    # "forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_sac_forward_20260528_093547.zip"),
-    "forward": Path("/workspaces/gymnasium_ws/artifacts/models/ant_cmd_ppo_forward_20260614_063248.zip"),
-    "left": Path("/workspaces/gymnasium_ws/artifacts/models/old_models/ant_cmd_sac_left_20260605_052733.zip"),
-    "right": Path("/workspaces/gymnasium_ws/artifacts/models/old_models/ant_cmd_sac_right_20260603_143452.zip"),
+    "stand": Path("/workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_stand_20260613_093644.zip"),
+    "forward": Path("/workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_forward_20260613_050231.zip"),
+    "left": Path("/workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_left_20260613_202811.zip"),
+    "right": Path("/workspaces/gymnasium_ws/evaluation/training/expert_sac/ant_cmd_sac_right_20260613_210732.zip"),
 }
 
 

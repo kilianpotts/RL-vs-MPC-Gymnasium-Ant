@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     nano \
     git \
+    ffmpeg \
     # OpenGL / rendering
     libgl1 \
     libosmesa6 \
@@ -44,6 +45,16 @@ RUN pip3 install --no-cache-dir \
     mujoco \
     "stable-baselines3>=2.3.0" \
     opencv-python
+
+# Analysis + plotting + trajectory tooling
+RUN pip3 install --no-cache-dir \
+    matplotlib \
+    pandas \
+    seaborn \
+    scipy \
+    pyyaml \
+    imageio \
+    tqdm \
 
 # (Optional but helpful for MuJoCo rendering)
 ENV MUJOCO_GL=egl
